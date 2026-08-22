@@ -83,7 +83,7 @@ h2{font-family:var(--pen);font-weight:600;font-size:17px;margin:26px 0 4px;
 .pb:disabled{opacity:.4;cursor:default}
 .wide{display:block;width:100%;text-align:center;padding:11px;font-size:15px;margin-top:14px;
   border-radius:16px 10px 15px 9px}
-.row{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px}
 
 /* ---------- A/B 切替 ---------- */
 .dayswitch{display:flex;gap:12px;margin-top:12px}
@@ -121,9 +121,10 @@ h2{font-family:var(--pen);font-weight:600;font-size:17px;margin:26px 0 4px;
 .slot.on{color:var(--green);border-color:var(--green);border-width:2px;
   background:rgba(205,235,221,.4)}
 .slot.edit{color:var(--ink);border-color:var(--ink);background:#fff;text-align:center}
-.stage{display:flex;gap:3px;align-items:center}
+.stage-wrap{display:flex;gap:5px;align-items:center;margin-left:auto;flex:0 0 auto}
+.stage{display:flex;gap:2.5px;align-items:center}
 .stage-lab{font-family:var(--note);font-size:10px;color:var(--ink-soft)}
-.seg{width:14px;height:14px;border-radius:50%;border:1.5px solid #C3CCD8;background:transparent;
+.seg{width:13px;height:13px;border-radius:50%;border:1.5px solid #C3CCD8;background:transparent;
   padding:0;cursor:pointer}
 .seg.on{background:var(--red);border-color:var(--red)}
 
@@ -207,6 +208,7 @@ nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--paper);
 .note{font-size:12.5px;color:var(--ink-soft);line-height:1.9;margin-top:8px}
 .volrow{display:flex;gap:10px;align-items:center;margin-top:11px}
 .volrow .vl{flex:0 0 auto}
+.tonepick{display:flex;gap:6px;flex-wrap:wrap;flex:1 1 auto}
 .vol{flex:1 1 auto;min-width:0;height:28px;accent-color:var(--ink);background:transparent}
 .vnum{flex:0 0 30px;text-align:right;font-variant-numeric:tabular-nums}
 .banner{border:1.6px dashed var(--red);border-radius:12px 8px 11px 7px;padding:8px 11px;
@@ -281,7 +283,7 @@ const SIDE_NAME=["左","右"];
 
 /* ============ 保存（localStorage） ============ */
 const KEY="kintore-note-v1";
-let DB={ sessions:[], body:[], stages:{}, auto:true, sound:true, bg:true, vol:0.6 };
+let DB={ sessions:[], body:[], stages:{}, auto:true, sound:true, bg:true, vol:0.75, tone:"station" };
 function load(){
   try{ const raw=localStorage.getItem(KEY); if(raw) DB=Object.assign(DB,JSON.parse(raw)); }
   catch(e){ console.warn("読み込み失敗",e); }
@@ -342,7 +344,7 @@ let ac=null;
 function audioMode(m){ try{ if(navigator.audioSession) navigator.audioSession.type=m; }catch(e){} }
 function unlockAudio(){
   try{
-    audioMode("ambient");
+    if(!Object.keys(alarms).length) audioMode("ambient");   /* 休憩中は playback を保つ */
     if(!ac) ac=new (window.AudioContext||window.webkitAudioContext)();
     if(ac.state==="suspended") ac.resume();
   }catch(e){}
@@ -351,19 +353,29 @@ const vol=()=>{ const v=+DB.vol; return isNaN(v)?0.6:Math.max(0,Math.min(1,v)); 
 function buzz(n){ if(navigator.vibrate) try{ navigator.vibrate(n>1?[90,70,90]:120); }catch(e){} }
 
 /* ---- 音色 ----
-   やわらかい鐘の音。立ち上がりをゆっくりにして長く減衰させると角が取れる。
-   終了は「ソ→レ」と下がる2音、切替は単音。前面でも裏でも同じ波形を使う */
-const RING=0.9;
-const TONE={ set:[[784,0],[587,0.26]], sw:[[659,0]] };
-const toneLen=k=>TONE[k][TONE[k].length-1][1]+RING+0.15;
-function toneAt(k,t){
-  let v=0;
-  for(const nf of TONE[k]){
-    const p=t-nf[1]; if(p<0||p>RING) continue;
-    const env=Math.min(1,p/0.035)*Math.pow(1-p/RING,2.4);   /* ゆっくり出てなめらかに消える */
-    v+=(Math.sin(2*Math.PI*nf[0]*p)+Math.sin(4*Math.PI*nf[0]*p)*0.10)/1.10*env;
+   ring=1音が消えるまでの秒数。set=終了音、sw=左右の切替音。
+   音を足したいときはここに1行増やすだけでよい */
+const TONES={
+  station:{n:"到着音",   ring:1.9, set:[[784,0],[659,0.45],[523,0.90]], sw:[[784,0],[659,0.45]]},
+  bell:   {n:"鐘",       ring:0.9, set:[[784,0],[587,0.26]],            sw:[[659,0]]},
+  chime:  {n:"チャイム", ring:1.5, set:[[659,0],[523,0.40],[587,0.80],[392,1.20]], sw:[[659,0],[523,0.40]]},
+  soft:   {n:"やわらか", ring:2.4, set:[[523,0],[784,0.55]],            sw:[[523,0]]}
+};
+const toneId=()=>TONES[DB.tone]?DB.tone:"station";
+const toneLen=k=>{ const T=TONES[toneId()]; return T[k][T[k].length-1][1]+T.ring+0.15; };
+/* 大きさは主に「減衰をゆるやかにする」ことで稼ぐ。
+   歪ませると耳障りになるので、圧縮はごく軽くかけるだけにする */
+const shape=(v,g)=>{ const d=1+0.55*g; return Math.tanh(v*d)/Math.tanh(d)*g; };
+function toneAt(k,t,g){
+  const T=TONES[toneId()], R=T.ring;
+  /* 音が重なっても 1.0 で切れて方形波にならないよう、音数で割っておく */
+  let v=0, norm=Math.sqrt(T[k].length);
+  for(const nf of T[k]){
+    const p=t-nf[1]; if(p<0||p>R) continue;
+    const env=Math.min(1,p/0.035)*Math.pow(1-p/R,1.45);  /* ゆっくり出て、長く鳴ってから消える */
+    v+=(Math.sin(2*Math.PI*nf[0]*p)+Math.sin(4*Math.PI*nf[0]*p)*0.10)/1.10*env/norm;
   }
-  return Math.max(-1,Math.min(1,v*0.72));
+  return Math.max(-1,Math.min(1,shape(v,g)));
 }
 
 /* 画面を開いているときの音。裏で使う波形と同じものを鳴らす */
@@ -371,9 +383,9 @@ function beep(kind){
   if(!DB.sound||vol()<=0) return;
   try{
     unlockAudio(); if(!ac) return;
-    const sr=ac.sampleRate, n=Math.ceil(toneLen(kind)*sr);
-    const buf=ac.createBuffer(1,n,sr), d=buf.getChannelData(0), v=vol();
-    for(let i=0;i<n;i++) d[i]=toneAt(kind,i/sr)*v;
+    const sr=ac.sampleRate, n=Math.ceil(toneLen(kind)*sr), g=vol();
+    const buf=ac.createBuffer(1,n,sr), d=buf.getChannelData(0);
+    for(let i=0;i<n;i++) d[i]=toneAt(kind,i/sr,g);
     const src=ac.createBufferSource(); src.buffer=buf;
     src.connect(ac.destination); src.start();
   }catch(e){}
@@ -395,7 +407,7 @@ function alarmBlob(delay,kind,v){
   dv.setUint16(32,2,true); dv.setUint16(34,16,true);
   wr(36,"data"); dv.setUint32(40,n*2,true);
   for(let i=Math.floor(delay*SR);i<n;i++)                  /* 無音部分は0のままでよい */
-    dv.setInt16(44+i*2,toneAt(kind,i/SR-delay)*v*32767,true);
+    dv.setInt16(44+i*2,toneAt(kind,i/SR-delay,v)*32767,true);
   return new Blob([buf],{type:"audio/wav"});
 }
 const alarms={};
@@ -410,7 +422,10 @@ function scheduleAlarm(k,ms,kind){
   cancelAlarm(k);
   if(!DB.sound||!DB.bg||vol()<=0||ms<0) return;
   try{
-    audioMode("ambient");
+    /* 最初から playback にしておく。ambient のままだと画面ロック時に
+       iOS に止められてしまい、閉じている間は鳴らない。
+       そのかわり休憩のあいだ音楽は止まる（設定で切れる） */
+    audioMode("playback");
     const url=URL.createObjectURL(alarmBlob(ms/1000,kind,vol()));
     const el=new Audio(); el.src=url; el.preload="auto"; el.loop=false;
     alarms[k]={el,url,base:Date.now(),at:Date.now()+ms};
@@ -593,9 +608,9 @@ function renderToday(){
       <div class="sets">${groups}</div>
       <div class="row" style="margin-top:9px">
         <button class="pb sm${allOn?" on":""}" data-fillex="${i}">${allOn?"消去":"全部"}</button>
-        ${e.u?`<button class="pb sm red" data-rest="${e.sw}" data-exi="${i}" data-swap="1">切替 ${e.sw}秒</button>`:""}
-        <button class="pb sm" data-rest="${e.r}" data-exi="${i}">休憩 ${e.r}秒</button>
-        <span class="stage-lab" style="margin-left:auto">段階</span><span class="stage">${segs}</span>
+        ${e.u?`<button class="pb sm red" data-rest="${e.sw}" data-exi="${i}" data-swap="1">切替${e.sw}秒</button>`:""}
+        <button class="pb sm" data-rest="${e.r}" data-exi="${i}">休憩${e.r}秒</button>
+        <span class="stage-wrap"><span class="stage-lab">段階</span><span class="stage">${segs}</span></span>
       </div>
     </div>`;
   });
@@ -754,17 +769,22 @@ function renderSet(){
         <span class="chk"></span>画面を閉じていても鳴らす</button>
     </div>
     <div class="volrow">
+      <span class="small vl">音色</span>
+      <span class="tonepick">${Object.keys(TONES).map(id=>
+        `<button class="pb sm${toneId()===id?" on":""}" data-tone="${id}">${TONES[id].n}</button>`).join("")}</span>
+    </div>
+    <div class="volrow">
       <span class="small vl">音量</span>
       <input type="range" id="vol" class="vol" min="0" max="100" step="5"
         value="${Math.round(vol()*100)}" aria-label="音量">
       <span class="small vnum" id="volnum">${Math.round(vol()*100)}</span>
       <button class="pb sm" id="voltest">試聴</button>
     </div>
-    <p class="note">スライダーを動かすと、その音量で試し鳴らしします。端末そのものの音量も上げてください。
-    アプリを開いている間は、音楽と混ざって鳴るので音楽は止まりません。
-    「画面を閉じていても鳴らす」を入れると、画面を閉じている間だけ音楽より優先して鳴ります
-    （そのあいだ音楽が止まることがあります）。切れば音楽を止めることはなくなりますが、
-    画面を閉じている間は鳴りません。</p>
+    <p class="note">音色を押すと試し鳴らしします。スライダーも動かすとその音量で鳴ります。
+    端末そのものの音量も上げてください。</p>
+    <p class="note">「画面を閉じていても鳴らす」を入れると、休憩のあいだ音楽より優先して鳴ります。
+    確実に鳴るかわりに、休憩中は音楽が止まります。切ると音楽は止まりませんが、
+    画面を閉じている間は鳴りません。iPhone ではこのどちらかしか選べません。</p>
     <div class="hr"></div>
     <h2>ホーム画面への追加</h2>
     <p class="small">iPhone は Safari の共有ボタン →「ホーム画面に追加」。
@@ -829,6 +849,7 @@ document.addEventListener("click",e=>{
   if(t.id==="d-stop"){ stopRest(); return renderToday(); }
   if(t.id==="auto"){ DB.auto=!DB.auto; save();
     return document.getElementById("view-set").classList.contains("hide")?renderToday():renderSet(); }
+  if(t.dataset.tone){ DB.tone=t.dataset.tone; save(); resyncAlarms(); beep("set"); return renderSet(); }
   if(t.id==="voltest"){ beep("set"); return; }
   if(t.id==="bg"){ DB.bg=!DB.bg; save(); resyncAlarms();
     return document.getElementById("view-set").classList.contains("hide")?renderToday():renderSet(); }
@@ -917,7 +938,7 @@ document.addEventListener("click",e=>{
   if(t.id==="wipe"){
     if(!confirm("すべての記録を消します。よろしいですか？")) return;
     if(!confirm("本当に消しますか？元に戻せません。")) return;
-    DB={ sessions:[], body:[], stages:{}, auto:true, sound:true, bg:true, vol:0.6 };
+    DB={ sessions:[], body:[], stages:{}, auto:true, sound:true, bg:true, vol:0.75, tone:"station" };
     localStorage.removeItem(KEY);
     renderHeader(); return show("set");
   }
@@ -933,7 +954,7 @@ document.addEventListener("change",e=>{
       const j=JSON.parse(r.result);
       if(!j||!Array.isArray(j.sessions)) throw new Error("形式ちがい");
       if(!confirm(`トレーニング ${j.sessions.length} 件を読み込みます。現在の記録は上書きされます。`)) return;
-      DB=Object.assign({sessions:[],body:[],stages:{},auto:true,sound:true,bg:true,vol:0.6}, j);
+      DB=Object.assign({sessions:[],body:[],stages:{},auto:true,sound:true,bg:true,vol:0.75,tone:"station"}, j);
       save(); renderHeader(); show("set");
       alert("読み込みが完了しました。");
     }catch(err){ alert("読み込みに失敗しました："+err.message); }
