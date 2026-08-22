@@ -337,8 +337,12 @@ function countFilled(){
 
 /* ============ 音 ============ */
 let ac=null;
+/* iOS の Audio Session。ambient=音楽と混ざる / playback=music を止めてでも鳴る。
+   ふだんは ambient にしておき、画面を閉じたときだけ playback へ切り替える */
+function audioMode(m){ try{ if(navigator.audioSession) navigator.audioSession.type=m; }catch(e){} }
 function unlockAudio(){
   try{
+    audioMode("ambient");
     if(!ac) ac=new (window.AudioContext||window.webkitAudioContext)();
     if(ac.state==="suspended") ac.resume();
   }catch(e){}
@@ -346,36 +350,43 @@ function unlockAudio(){
 const vol=()=>{ const v=+DB.vol; return isNaN(v)?0.6:Math.max(0,Math.min(1,v)); };
 function buzz(n){ if(navigator.vibrate) try{ navigator.vibrate(n>1?[90,70,90]:120); }catch(e){} }
 
-/* 画面を開いているときの即時音。基音に倍音を少し混ぜて通りをよくする */
-function beep(n,freq){
+/* ---- 音色 ----
+   やわらかい鐘の音。立ち上がりをゆっくりにして長く減衰させると角が取れる。
+   終了は「ソ→レ」と下がる2音、切替は単音。前面でも裏でも同じ波形を使う */
+const RING=0.9;
+const TONE={ set:[[784,0],[587,0.26]], sw:[[659,0]] };
+const toneLen=k=>TONE[k][TONE[k].length-1][1]+RING+0.15;
+function toneAt(k,t){
+  let v=0;
+  for(const nf of TONE[k]){
+    const p=t-nf[1]; if(p<0||p>RING) continue;
+    const env=Math.min(1,p/0.035)*Math.pow(1-p/RING,2.4);   /* ゆっくり出てなめらかに消える */
+    v+=(Math.sin(2*Math.PI*nf[0]*p)+Math.sin(4*Math.PI*nf[0]*p)*0.10)/1.10*env;
+  }
+  return Math.max(-1,Math.min(1,v*0.72));
+}
+
+/* 画面を開いているときの音。裏で使う波形と同じものを鳴らす */
+function beep(kind){
   if(!DB.sound||vol()<=0) return;
   try{
     unlockAudio(); if(!ac) return;
-    const peak=Math.max(0.02,vol());
-    for(let i=0;i<n;i++){
-      const t=ac.currentTime+i*0.26, g=ac.createGain();
-      g.gain.setValueAtTime(0.0001,t);
-      g.gain.exponentialRampToValueAtTime(peak,t+0.012);
-      g.gain.exponentialRampToValueAtTime(0.0001,t+0.20);
-      g.connect(ac.destination);
-      [[freq,1],[freq*2,0.35]].forEach(function(fa){
-        const o=ac.createOscillator(), gg=ac.createGain();
-        o.type="sine"; o.frequency.value=fa[0]; gg.gain.value=fa[1];
-        o.connect(gg); gg.connect(g);
-        o.start(t); o.stop(t+0.22);
-      });
-    }
+    const sr=ac.sampleRate, n=Math.ceil(toneLen(kind)*sr);
+    const buf=ac.createBuffer(1,n,sr), d=buf.getChannelData(0), v=vol();
+    for(let i=0;i<n;i++) d[i]=toneAt(kind,i/sr)*v;
+    const src=ac.createBufferSource(); src.buffer=buf;
+    src.connect(ac.destination); src.start();
   }catch(e){}
 }
 
-/* ---- バックグラウンド用のアラーム ----
-   JSのタイマーは画面を閉じると止まるので、休憩の残り時間ぶんの「無音＋ビープ」を
-   1本の音声として作り、休憩開始と同時に再生しておく。再生中の音声は画面を閉じても
-   流れ続けるため、時間どおりに鳴る。
-   音量は波形の振幅そのもので決める（iOS は audio.volume の指定を無視するため）。 */
+/* ---- 画面を閉じているとき用のアラーム ----
+   JSのタイマーは画面を閉じると止まるので、残り時間ぶんの「無音＋鐘」を音声として
+   用意しておく。ただし最初から流すと iOS が音楽を止めてしまうため、再生は
+   画面を閉じた瞬間まで待つ（下の visibilitychange）。
+   音量は波形の振幅で決める（iOS は audio.volume の指定を無視するため）。 */
 const SR=8000;
-function alarmBlob(delay,beeps,freq,v){
-  const dur=0.20, gap=0.26, n=Math.ceil((delay+beeps*gap+0.4)*SR);
+function alarmBlob(delay,kind,v){
+  const n=Math.ceil((delay+toneLen(kind))*SR);
   const buf=new ArrayBuffer(44+n*2), dv=new DataView(buf);
   const wr=(o,t)=>{ for(let i=0;i<t.length;i++) dv.setUint8(o+i,t.charCodeAt(i)); };
   wr(0,"RIFF"); dv.setUint32(4,36+n*2,true); wr(8,"WAVEfmt ");
@@ -383,13 +394,8 @@ function alarmBlob(delay,beeps,freq,v){
   dv.setUint32(24,SR,true); dv.setUint32(28,SR*2,true);
   dv.setUint16(32,2,true); dv.setUint16(34,16,true);
   wr(36,"data"); dv.setUint32(40,n*2,true);
-  for(let i=Math.floor(delay*SR);i<n;i++){          /* 無音部分は0のままでよい */
-    const rel=i/SR-delay, k=Math.floor(rel/gap), p=rel-k*gap;
-    if(k<0||k>=beeps||p>dur) continue;
-    const env=Math.min(1,p/0.008,(dur-p)/0.03);     /* 端のプチ音を防ぐ */
-    const w=(Math.sin(2*Math.PI*freq*p)+Math.sin(4*Math.PI*freq*p)*0.35)/1.35;
-    dv.setInt16(44+i*2,Math.max(-1,Math.min(1,w*env*v))*32767,true);
-  }
+  for(let i=Math.floor(delay*SR);i<n;i++)                  /* 無音部分は0のままでよい */
+    dv.setInt16(44+i*2,toneAt(kind,i/SR-delay)*v*32767,true);
   return new Blob([buf],{type:"audio/wav"});
 }
 const alarms={};
@@ -400,29 +406,55 @@ function cancelAlarm(k){
   try{ URL.revokeObjectURL(a.url); }catch(e){}
 }
 function cancelAlarms(){ Object.keys(alarms).forEach(cancelAlarm); }
-function scheduleAlarm(k,ms,beeps,freq){
+function scheduleAlarm(k,ms,kind){
   cancelAlarm(k);
   if(!DB.sound||!DB.bg||vol()<=0||ms<0) return;
   try{
-    const url=URL.createObjectURL(alarmBlob(ms/1000,beeps,freq,vol()));
-    const el=new Audio(); el.src=url; el.preload="auto";
-    alarms[k]={el,url};
+    const url=URL.createObjectURL(alarmBlob(ms/1000,kind,vol()));
+    const el=new Audio(); el.src=url; el.preload="auto"; el.loop=false;
+    alarms[k]={el,url,base:Date.now(),at:Date.now()+ms};
     el.addEventListener("ended",()=>{ if(alarms[k]&&alarms[k].el===el) cancelAlarm(k); });
-    const pr=el.play(); if(pr&&pr.catch) pr.catch(()=>{});
+    /* 操作中に一度だけ再生許可を取り、すぐ止める。ambient なので音楽は流れたまま。
+       これをしておかないと、画面を閉じたあとに再生を始められない */
+    const pr=el.play();
+    if(pr&&pr.then) pr.then(()=>{ if(!document.hidden) el.pause(); }).catch(()=>{});
+    else if(!document.hidden) el.pause();
   }catch(e){}
 }
-/* rest の中身が変わるたびに鳴らし直す。タップ直後に呼ぶこと（iOSは操作中しか再生を許さない） */
+/* rest の中身が変わるたびに用意し直す。タップ直後に呼ぶこと */
 function resyncAlarms(){
   cancelAlarms();
   if(!rest||!DB.sound||!DB.bg) return;
   const now=Date.now();
   if(rest.uni&&rest.swEnd&&!rest.fired.sw&&rest.swEnd>now)
-    scheduleAlarm("sw",rest.swEnd-now,2,760);
+    scheduleAlarm("sw",rest.swEnd-now,"sw");
   [0,1].forEach(i=>{
     if(rest.ends[i]&&!rest.fired["s"+i]&&rest.ends[i]>now&&(!rest.uni||i===rest.next))
-      scheduleAlarm("s"+i,rest.ends[i]-now,2,880);
+      scheduleAlarm("s"+i,rest.ends[i]-now,"set");
   });
 }
+/* 画面を閉じた瞬間に再生開始。ここで初めて音楽に割り込む */
+function armBackground(){
+  if(!rest||!DB.sound||!DB.bg) return;
+  const now=Date.now(); let any=false;
+  Object.keys(alarms).forEach(k=>{
+    const a=alarms[k]; if(a.at<=now) return;
+    try{ a.el.currentTime=(now-a.base)/1000; const pr=a.el.play(); if(pr&&pr.catch) pr.catch(()=>{}); any=true; }catch(e){}
+  });
+  if(any) audioMode("playback");
+}
+/* 戻ってきたら止めて音楽に返す。裏で鳴り終わった分は二重に鳴らさない */
+function disarmBackground(){
+  const now=Date.now();
+  Object.keys(alarms).forEach(k=>{
+    try{ alarms[k].el.pause(); }catch(e){}
+    if(rest&&alarms[k].at<=now) rest.fired[k]=true;
+  });
+  audioMode("ambient");
+}
+document.addEventListener("visibilitychange",()=>{
+  if(document.hidden) armBackground(); else disarmBackground();
+});
 
 /* ============ タイマー ============ */
 let rest=null, tick=null;
@@ -466,11 +498,11 @@ function paintDock(){
   const left=i=>rest.ends[i]?(rest.ends[i]-now)/1000:-1;
   const swLeft=rest.swEnd?(rest.swEnd-now)/1000:-1;
 
-  if(rest.uni && rest.swEnd && swLeft<=0 && !rest.fired.sw){ rest.fired.sw=true; if(!DB.bg) beep(2,760); buzz(2); }
+  if(rest.uni && rest.swEnd && swLeft<=0 && !rest.fired.sw){ rest.fired.sw=true; beep("sw"); buzz(2); }
   [0,1].forEach(i=>{
     if(rest.ends[i] && left(i)<=0 && !rest.fired["s"+i]){
       rest.fired["s"+i]=true;
-      if(!rest.uni || i===rest.next){ if(!DB.bg) beep(2,880); buzz(2); }
+      if(!rest.uni || i===rest.next){ beep("set"); buzz(2); }
     }
   });
 
@@ -724,8 +756,10 @@ function renderSet(){
       <button class="pb sm" id="voltest">試聴</button>
     </div>
     <p class="note">スライダーを動かすと、その音量で試し鳴らしします。端末そのものの音量も上げてください。
-    「画面を閉じていても鳴らす」は、休憩の残り時間ぶんの音声を先に流しておく仕組みです。
-    そのため、音楽を聴きながら使うと音楽が止まることがあります。気になるときは切ってください。</p>
+    アプリを開いている間は、音楽と混ざって鳴るので音楽は止まりません。
+    「画面を閉じていても鳴らす」を入れると、画面を閉じている間だけ音楽より優先して鳴ります
+    （そのあいだ音楽が止まることがあります）。切れば音楽を止めることはなくなりますが、
+    画面を閉じている間は鳴りません。</p>
     <div class="hr"></div>
     <h2>ホーム画面への追加</h2>
     <p class="small">iPhone は Safari の共有ボタン →「ホーム画面に追加」。
@@ -784,10 +818,10 @@ document.addEventListener("click",e=>{
   if(t.id==="d-stop"){ stopRest(); return renderToday(); }
   if(t.id==="auto"){ DB.auto=!DB.auto; save();
     return document.getElementById("view-set").classList.contains("hide")?renderToday():renderSet(); }
-  if(t.id==="voltest"){ beep(2,880); return; }
+  if(t.id==="voltest"){ beep("set"); return; }
   if(t.id==="bg"){ DB.bg=!DB.bg; save(); resyncAlarms();
     return document.getElementById("view-set").classList.contains("hide")?renderToday():renderSet(); }
-  if(t.id==="sound"){ DB.sound=!DB.sound; save(); resyncAlarms(); if(DB.sound) beep(1,880);
+  if(t.id==="sound"){ DB.sound=!DB.sound; save(); resyncAlarms(); if(DB.sound) beep("set");
     return document.getElementById("view-set").classList.contains("hide")?renderToday():renderSet(); }
 
   if(t.dataset.mon){
@@ -879,7 +913,7 @@ document.addEventListener("click",e=>{
 });
 
 document.addEventListener("change",e=>{
-  if(e.target.id==="vol"){ beep(2,880); resyncAlarms(); return; }
+  if(e.target.id==="vol"){ beep("set"); resyncAlarms(); return; }
   if(e.target.id!=="import-file") return;
   const f=e.target.files&&e.target.files[0]; if(!f) return;
   const r=new FileReader();
