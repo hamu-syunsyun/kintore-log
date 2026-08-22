@@ -205,6 +205,10 @@ nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--paper);
 
 .empty{color:var(--ink-soft);font-size:13px;line-height:1.9}
 .note{font-size:12.5px;color:var(--ink-soft);line-height:1.9;margin-top:8px}
+.volrow{display:flex;gap:10px;align-items:center;margin-top:11px}
+.volrow .vl{flex:0 0 auto}
+.vol{flex:1 1 auto;min-width:0;height:28px;accent-color:var(--ink);background:transparent}
+.vnum{flex:0 0 30px;text-align:right;font-variant-numeric:tabular-nums}
 .banner{border:1.6px dashed var(--red);border-radius:12px 8px 11px 7px;padding:8px 11px;
   font-size:13px;color:var(--red);margin-top:12px;
   display:flex;justify-content:space-between;align-items:center;gap:8px}
@@ -277,7 +281,7 @@ const SIDE_NAME=["左","右"];
 
 /* ============ 保存（localStorage） ============ */
 const KEY="kintore-note-v1";
-let DB={ sessions:[], body:[], stages:{}, auto:true, sound:true };
+let DB={ sessions:[], body:[], stages:{}, auto:true, sound:true, bg:true, vol:0.6 };
 function load(){
   try{ const raw=localStorage.getItem(KEY); if(raw) DB=Object.assign(DB,JSON.parse(raw)); }
   catch(e){ console.warn("読み込み失敗",e); }
@@ -339,22 +343,85 @@ function unlockAudio(){
     if(ac.state==="suspended") ac.resume();
   }catch(e){}
 }
+const vol=()=>{ const v=+DB.vol; return isNaN(v)?0.6:Math.max(0,Math.min(1,v)); };
+function buzz(n){ if(navigator.vibrate) try{ navigator.vibrate(n>1?[90,70,90]:120); }catch(e){} }
+
+/* 画面を開いているときの即時音。基音に倍音を少し混ぜて通りをよくする */
 function beep(n,freq){
-  if(!DB.sound) return;
+  if(!DB.sound||vol()<=0) return;
   try{
     unlockAudio(); if(!ac) return;
+    const peak=Math.max(0.02,vol());
     for(let i=0;i<n;i++){
-      const t=ac.currentTime+i*0.24;
-      const o=ac.createOscillator(), g=ac.createGain();
-      o.type="sine"; o.frequency.value=freq;
+      const t=ac.currentTime+i*0.26, g=ac.createGain();
       g.gain.setValueAtTime(0.0001,t);
-      g.gain.exponentialRampToValueAtTime(0.28,t+0.012);
+      g.gain.exponentialRampToValueAtTime(peak,t+0.012);
       g.gain.exponentialRampToValueAtTime(0.0001,t+0.20);
-      o.connect(g); g.connect(ac.destination);
-      o.start(t); o.stop(t+0.22);
+      g.connect(ac.destination);
+      [[freq,1],[freq*2,0.35]].forEach(function(fa){
+        const o=ac.createOscillator(), gg=ac.createGain();
+        o.type="sine"; o.frequency.value=fa[0]; gg.gain.value=fa[1];
+        o.connect(gg); gg.connect(g);
+        o.start(t); o.stop(t+0.22);
+      });
     }
   }catch(e){}
-  if(navigator.vibrate) try{ navigator.vibrate(n>1?[90,70,90]:120); }catch(e){}
+}
+
+/* ---- バックグラウンド用のアラーム ----
+   JSのタイマーは画面を閉じると止まるので、休憩の残り時間ぶんの「無音＋ビープ」を
+   1本の音声として作り、休憩開始と同時に再生しておく。再生中の音声は画面を閉じても
+   流れ続けるため、時間どおりに鳴る。
+   音量は波形の振幅そのもので決める（iOS は audio.volume の指定を無視するため）。 */
+const SR=8000;
+function alarmBlob(delay,beeps,freq,v){
+  const dur=0.20, gap=0.26, n=Math.ceil((delay+beeps*gap+0.4)*SR);
+  const buf=new ArrayBuffer(44+n*2), dv=new DataView(buf);
+  const wr=(o,t)=>{ for(let i=0;i<t.length;i++) dv.setUint8(o+i,t.charCodeAt(i)); };
+  wr(0,"RIFF"); dv.setUint32(4,36+n*2,true); wr(8,"WAVEfmt ");
+  dv.setUint32(16,16,true); dv.setUint16(20,1,true); dv.setUint16(22,1,true);
+  dv.setUint32(24,SR,true); dv.setUint32(28,SR*2,true);
+  dv.setUint16(32,2,true); dv.setUint16(34,16,true);
+  wr(36,"data"); dv.setUint32(40,n*2,true);
+  for(let i=Math.floor(delay*SR);i<n;i++){          /* 無音部分は0のままでよい */
+    const rel=i/SR-delay, k=Math.floor(rel/gap), p=rel-k*gap;
+    if(k<0||k>=beeps||p>dur) continue;
+    const env=Math.min(1,p/0.008,(dur-p)/0.03);     /* 端のプチ音を防ぐ */
+    const w=(Math.sin(2*Math.PI*freq*p)+Math.sin(4*Math.PI*freq*p)*0.35)/1.35;
+    dv.setInt16(44+i*2,Math.max(-1,Math.min(1,w*env*v))*32767,true);
+  }
+  return new Blob([buf],{type:"audio/wav"});
+}
+const alarms={};
+function cancelAlarm(k){
+  const a=alarms[k]; if(!a) return;
+  delete alarms[k];
+  try{ a.el.pause(); a.el.removeAttribute("src"); a.el.load(); }catch(e){}
+  try{ URL.revokeObjectURL(a.url); }catch(e){}
+}
+function cancelAlarms(){ Object.keys(alarms).forEach(cancelAlarm); }
+function scheduleAlarm(k,ms,beeps,freq){
+  cancelAlarm(k);
+  if(!DB.sound||!DB.bg||vol()<=0||ms<0) return;
+  try{
+    const url=URL.createObjectURL(alarmBlob(ms/1000,beeps,freq,vol()));
+    const el=new Audio(); el.src=url; el.preload="auto";
+    alarms[k]={el,url};
+    el.addEventListener("ended",()=>{ if(alarms[k]&&alarms[k].el===el) cancelAlarm(k); });
+    const pr=el.play(); if(pr&&pr.catch) pr.catch(()=>{});
+  }catch(e){}
+}
+/* rest の中身が変わるたびに鳴らし直す。タップ直後に呼ぶこと（iOSは操作中しか再生を許さない） */
+function resyncAlarms(){
+  cancelAlarms();
+  if(!rest||!DB.sound||!DB.bg) return;
+  const now=Date.now();
+  if(rest.uni&&rest.swEnd&&!rest.fired.sw&&rest.swEnd>now)
+    scheduleAlarm("sw",rest.swEnd-now,2,760);
+  [0,1].forEach(i=>{
+    if(rest.ends[i]&&!rest.fired["s"+i]&&rest.ends[i]>now&&(!rest.uni||i===rest.next))
+      scheduleAlarm("s"+i,rest.ends[i]-now,2,880);
+  });
 }
 
 /* ============ タイマー ============ */
@@ -373,7 +440,7 @@ function touchSide(exi,side){
     rest.swEnd=Math.max(now+(e.sw||20)*1000, other);
     rest.fired.sw=false;
   }else rest.swEnd=null;
-  startTick();
+  resyncAlarms(); startTick();
 }
 function manualRest(exi,sec,swap){
   const e=PLAN[draft.day].ex[exi], now=Date.now();
@@ -385,10 +452,10 @@ function manualRest(exi,sec,swap){
     const side=rest.uni ? (rest.next===0?1:0) : 0;
     rest.ends[side]=now+sec*1000; rest.fired["s"+side]=false;
   }
-  startTick();
+  resyncAlarms(); startTick();
 }
 function startTick(){ paintDock(); clearInterval(tick); tick=setInterval(paintDock,250); }
-function stopRest(){ rest=null; clearInterval(tick); document.getElementById("dock").classList.remove("on"); }
+function stopRest(){ rest=null; cancelAlarms(); clearInterval(tick); document.getElementById("dock").classList.remove("on"); }
 const fmt=s=>{ s=Math.max(0,Math.ceil(s)); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); };
 
 function paintDock(){
@@ -399,11 +466,11 @@ function paintDock(){
   const left=i=>rest.ends[i]?(rest.ends[i]-now)/1000:-1;
   const swLeft=rest.swEnd?(rest.swEnd-now)/1000:-1;
 
-  if(rest.uni && rest.swEnd && swLeft<=0 && !rest.fired.sw){ rest.fired.sw=true; beep(2,760); }
+  if(rest.uni && rest.swEnd && swLeft<=0 && !rest.fired.sw){ rest.fired.sw=true; if(!DB.bg) beep(2,760); buzz(2); }
   [0,1].forEach(i=>{
     if(rest.ends[i] && left(i)<=0 && !rest.fired["s"+i]){
       rest.fired["s"+i]=true;
-      if(!rest.uni || i===rest.next) beep(2,880);
+      if(!rest.uni || i===rest.next){ if(!DB.bg) beep(2,880); buzz(2); }
     }
   });
 
@@ -645,6 +712,20 @@ function renderSet(){
       <button class="toggle" id="sound" aria-pressed="${DB.sound?"true":"false"}">
         <span class="chk"></span>終了時に音を鳴らす</button>
     </div>
+    <div class="row">
+      <button class="toggle" id="bg" aria-pressed="${DB.bg?"true":"false"}">
+        <span class="chk"></span>画面を閉じていても鳴らす</button>
+    </div>
+    <div class="volrow">
+      <span class="small vl">音量</span>
+      <input type="range" id="vol" class="vol" min="0" max="100" step="5"
+        value="${Math.round(vol()*100)}" aria-label="音量">
+      <span class="small vnum" id="volnum">${Math.round(vol()*100)}</span>
+      <button class="pb sm" id="voltest">試聴</button>
+    </div>
+    <p class="note">スライダーを動かすと、その音量で試し鳴らしします。端末そのものの音量も上げてください。
+    「画面を閉じていても鳴らす」は、休憩の残り時間ぶんの音声を先に流しておく仕組みです。
+    そのため、音楽を聴きながら使うと音楽が止まることがあります。気になるときは切ってください。</p>
     <div class="hr"></div>
     <h2>ホーム画面への追加</h2>
     <p class="small">iPhone は Safari の共有ボタン →「ホーム画面に追加」。
@@ -703,7 +784,10 @@ document.addEventListener("click",e=>{
   if(t.id==="d-stop"){ stopRest(); return renderToday(); }
   if(t.id==="auto"){ DB.auto=!DB.auto; save();
     return document.getElementById("view-set").classList.contains("hide")?renderToday():renderSet(); }
-  if(t.id==="sound"){ DB.sound=!DB.sound; save(); if(DB.sound) beep(1,880);
+  if(t.id==="voltest"){ beep(2,880); return; }
+  if(t.id==="bg"){ DB.bg=!DB.bg; save(); resyncAlarms();
+    return document.getElementById("view-set").classList.contains("hide")?renderToday():renderSet(); }
+  if(t.id==="sound"){ DB.sound=!DB.sound; save(); resyncAlarms(); if(DB.sound) beep(1,880);
     return document.getElementById("view-set").classList.contains("hide")?renderToday():renderSet(); }
 
   if(t.dataset.mon){
@@ -788,13 +872,14 @@ document.addEventListener("click",e=>{
   if(t.id==="wipe"){
     if(!confirm("すべての記録を消します。よろしいですか？")) return;
     if(!confirm("本当に消しますか？元に戻せません。")) return;
-    DB={ sessions:[], body:[], stages:{}, auto:true, sound:true };
+    DB={ sessions:[], body:[], stages:{}, auto:true, sound:true, bg:true, vol:0.6 };
     localStorage.removeItem(KEY);
     renderHeader(); return show("set");
   }
 });
 
 document.addEventListener("change",e=>{
+  if(e.target.id==="vol"){ beep(2,880); resyncAlarms(); return; }
   if(e.target.id!=="import-file") return;
   const f=e.target.files&&e.target.files[0]; if(!f) return;
   const r=new FileReader();
@@ -803,7 +888,7 @@ document.addEventListener("change",e=>{
       const j=JSON.parse(r.result);
       if(!j||!Array.isArray(j.sessions)) throw new Error("形式ちがい");
       if(!confirm(`トレーニング ${j.sessions.length} 件を読み込みます。現在の記録は上書きされます。`)) return;
-      DB=Object.assign({sessions:[],body:[],stages:{},auto:true,sound:true}, j);
+      DB=Object.assign({sessions:[],body:[],stages:{},auto:true,sound:true,bg:true,vol:0.6}, j);
       save(); renderHeader(); show("set");
       alert("読み込みが完了しました。");
     }catch(err){ alert("読み込みに失敗しました："+err.message); }
@@ -815,6 +900,11 @@ document.addEventListener("change",e=>{
 /* ============ 手入力 ============ */
 document.addEventListener("input",e=>{
   const el=e.target;
+  if(el.id==="vol"){
+    DB.vol=Math.max(0,Math.min(1,(+el.value||0)/100)); save();
+    const t=document.getElementById("volnum"); if(t) t.textContent=Math.round(vol()*100);
+    return;
+  }
   if(!el.classList||!el.classList.contains("edit")) return;
   el.value=el.value.replace(/[^0-9]/g,"");
   const e2=PLAN[draft.day].ex[+el.dataset.ex];
