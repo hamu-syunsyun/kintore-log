@@ -339,12 +339,12 @@ function countFilled(){
 
 /* ============ 音 ============ */
 let ac=null;
-/* iOS の Audio Session。ambient=音楽と混ざる / playback=music を止めてでも鳴る。
-   ふだんは ambient にしておき、画面を閉じたときだけ playback へ切り替える */
+/* iOS の Audio Session。ambient=音楽と混ざる / playback=音楽を止めてでも鳴る。
+   このアプリは音楽を止めないことを優先し、常に ambient を使う */
 function audioMode(m){ try{ if(navigator.audioSession) navigator.audioSession.type=m; }catch(e){} }
 function unlockAudio(){
   try{
-    if(!Object.keys(alarms).length) audioMode("ambient");   /* 休憩中は playback を保つ */
+    audioMode("ambient");   /* 音楽と混ざるモード。単発の試聴でも音楽を止めない */
     if(!ac) ac=new (window.AudioContext||window.webkitAudioContext)();
     if(ac.state==="suspended") ac.resume();
   }catch(e){}
@@ -422,10 +422,10 @@ function scheduleAlarm(k,ms,kind){
   cancelAlarm(k);
   if(!DB.sound||!DB.bg||vol()<=0||ms<0) return;
   try{
-    /* 最初から playback にしておく。ambient のままだと画面ロック時に
-       iOS に止められてしまい、閉じている間は鳴らない。
-       そのかわり休憩のあいだ音楽は止まる（設定で切れる） */
-    audioMode("playback");
+    /* 音楽を止めないことを優先し、休憩中も ambient のままにする。
+       playback にすれば画面を閉じていても確実に鳴るが、そのあいだ音楽が止まる。
+       iPhone ではどちらか一方しか選べない */
+    audioMode("ambient");
     const url=URL.createObjectURL(alarmBlob(ms/1000,kind,vol()));
     const el=new Audio(); el.src=url; el.preload="auto"; el.loop=false;
     alarms[k]={el,url,base:Date.now(),at:Date.now()+ms};
@@ -448,21 +448,20 @@ function resyncAlarms(){
       scheduleAlarm("s"+i,rest.ends[i]-now,"set");
   });
 }
-/* 画面を閉じた瞬間。すでに流れている音声を、音楽より優先する種別に切り替える。
-   ここで初めて音楽が止まる */
+/* 画面を閉じたとき。音楽を止めたくないので、ここで優先モードには切り替えない。
+   iPhone では ambient の音が画面ロックで止められるため鳴らないことがあるが、
+   優先モードにすると音楽が止まるので、音楽を採る。
+   Android など、そのまま流れ続ける端末ではこれで鳴る */
 function armBackground(){
   if(!rest||!DB.sound||!DB.bg) return;
-  const now=Date.now(); let any=false;
+  const now=Date.now();
   Object.keys(alarms).forEach(k=>{
     const a=alarms[k]; if(a.at<=now) return;
-    any=true;
-    /* 通常は流れたままのはず。何かの拍子に止まっていたら位置を合わせて再開する */
+    /* 何かの拍子に止まっていたら位置を合わせて再開する */
     if(a.el.paused) try{ a.el.currentTime=(now-a.base)/1000; const pr=a.el.play(); if(pr&&pr.catch) pr.catch(()=>{}); }catch(e){}
   });
-  if(any) audioMode("playback");
 }
-/* 戻ってきたら音楽に返す。再生は止めない（次に閉じたときのため）。
-   裏で鳴り終わった分は、戻ってから二重に鳴らさない */
+/* 戻ってきたとき。裏で鳴り終わった分は、戻ってから二重に鳴らさない */
 function disarmBackground(){
   const now=Date.now();
   audioMode("ambient");
@@ -782,9 +781,9 @@ function renderSet(){
     </div>
     <p class="note">音色を押すと試し鳴らしします。スライダーも動かすとその音量で鳴ります。
     端末そのものの音量も上げてください。</p>
-    <p class="note">「画面を閉じていても鳴らす」を入れると、休憩のあいだ音楽より優先して鳴ります。
-    確実に鳴るかわりに、休憩中は音楽が止まります。切ると音楽は止まりませんが、
-    画面を閉じている間は鳴りません。iPhone ではこのどちらかしか選べません。</p>
+    <p class="note">音楽を止めないことを優先しています。音は音楽と混ざって鳴るので、
+    聴きながらでも音楽は止まりません。そのかわり iPhone では、画面を閉じている間は
+    鳴らないことがあります。休憩中はなるべく画面を開いたままにしてください。</p>
     <div class="hr"></div>
     <h2>ホーム画面への追加</h2>
     <p class="small">iPhone は Safari の共有ボタン →「ホーム画面に追加」。
