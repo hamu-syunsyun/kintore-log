@@ -410,15 +410,15 @@ function scheduleAlarm(k,ms,kind){
   cancelAlarm(k);
   if(!DB.sound||!DB.bg||vol()<=0||ms<0) return;
   try{
+    audioMode("ambient");
     const url=URL.createObjectURL(alarmBlob(ms/1000,kind,vol()));
     const el=new Audio(); el.src=url; el.preload="auto"; el.loop=false;
     alarms[k]={el,url,base:Date.now(),at:Date.now()+ms};
     el.addEventListener("ended",()=>{ if(alarms[k]&&alarms[k].el===el) cancelAlarm(k); });
-    /* 操作中に一度だけ再生許可を取り、すぐ止める。ambient なので音楽は流れたまま。
-       これをしておかないと、画面を閉じたあとに再生を始められない */
-    const pr=el.play();
-    if(pr&&pr.then) pr.then(()=>{ if(!document.hidden) el.pause(); }).catch(()=>{});
-    else if(!document.hidden) el.pause();
+    /* 止めずに流し続ける。ambient なので音楽と混ざり、無音部分なので何も聞こえない。
+       iOS は背面に回ってから再生を「開始」することを許さないため、
+       最初から流しておくのが確実に鳴らす唯一の方法 */
+    const pr=el.play(); if(pr&&pr.catch) pr.catch(()=>{});
   }catch(e){}
 }
 /* rest の中身が変わるたびに用意し直す。タップ直後に呼ぶこと */
@@ -433,28 +433,33 @@ function resyncAlarms(){
       scheduleAlarm("s"+i,rest.ends[i]-now,"set");
   });
 }
-/* 画面を閉じた瞬間に再生開始。ここで初めて音楽に割り込む */
+/* 画面を閉じた瞬間。すでに流れている音声を、音楽より優先する種別に切り替える。
+   ここで初めて音楽が止まる */
 function armBackground(){
   if(!rest||!DB.sound||!DB.bg) return;
   const now=Date.now(); let any=false;
   Object.keys(alarms).forEach(k=>{
     const a=alarms[k]; if(a.at<=now) return;
-    try{ a.el.currentTime=(now-a.base)/1000; const pr=a.el.play(); if(pr&&pr.catch) pr.catch(()=>{}); any=true; }catch(e){}
+    any=true;
+    /* 通常は流れたままのはず。何かの拍子に止まっていたら位置を合わせて再開する */
+    if(a.el.paused) try{ a.el.currentTime=(now-a.base)/1000; const pr=a.el.play(); if(pr&&pr.catch) pr.catch(()=>{}); }catch(e){}
   });
   if(any) audioMode("playback");
 }
-/* 戻ってきたら止めて音楽に返す。裏で鳴り終わった分は二重に鳴らさない */
+/* 戻ってきたら音楽に返す。再生は止めない（次に閉じたときのため）。
+   裏で鳴り終わった分は、戻ってから二重に鳴らさない */
 function disarmBackground(){
   const now=Date.now();
-  Object.keys(alarms).forEach(k=>{
-    try{ alarms[k].el.pause(); }catch(e){}
-    if(rest&&alarms[k].at<=now) rest.fired[k]=true;
-  });
   audioMode("ambient");
+  if(rest) Object.keys(alarms).forEach(k=>{ if(alarms[k].at<=now) rest.fired[k]=true; });
 }
 document.addEventListener("visibilitychange",()=>{
   if(document.hidden) armBackground(); else disarmBackground();
 });
+window.addEventListener("pagehide",armBackground);   /* 画面ロックで visibilitychange が来ないことがある */
+
+/* その時刻の音がアラーム音声から鳴るか（鳴るなら前面で二重に鳴らさない） */
+const ringing=k=>{ const a=alarms[k]; return !!(a&&!a.el.paused&&!a.el.ended); };
 
 /* ============ タイマー ============ */
 let rest=null, tick=null;
@@ -498,11 +503,11 @@ function paintDock(){
   const left=i=>rest.ends[i]?(rest.ends[i]-now)/1000:-1;
   const swLeft=rest.swEnd?(rest.swEnd-now)/1000:-1;
 
-  if(rest.uni && rest.swEnd && swLeft<=0 && !rest.fired.sw){ rest.fired.sw=true; beep("sw"); buzz(2); }
+  if(rest.uni && rest.swEnd && swLeft<=0 && !rest.fired.sw){ rest.fired.sw=true; if(!ringing("sw")) beep("sw"); buzz(2); }
   [0,1].forEach(i=>{
     if(rest.ends[i] && left(i)<=0 && !rest.fired["s"+i]){
       rest.fired["s"+i]=true;
-      if(!rest.uni || i===rest.next){ beep("set"); buzz(2); }
+      if(!rest.uni || i===rest.next){ if(!ringing("s"+i)) beep("set"); buzz(2); }
     }
   });
 
@@ -807,7 +812,13 @@ document.addEventListener("click",e=>{
     const e2=PLAN[draft.day].ex[i], cur=cellVal(e2.n,k,sd);
     if(cur==null){
       setCell(e2.n,k,sd,String(e2.d)); editing=null;
-      if(DB.auto) touchSide(i,sd);
+      if(DB.auto){
+        /* その種目の枠が全部埋まったら最後のセット。次がないので休憩は要らない */
+        const ns=sides(e2); let done=0;
+        for(let a=0;a<e2.s;a++) for(let b=0;b<ns;b++) if(cellVal(e2.n,a,b)!=null) done++;
+        if(done>=e2.s*ns){ if(rest&&rest.exi===i) stopRest(); }
+        else touchSide(i,sd);
+      }
     }else editing={ex:i,set:k,side:sd};
     return renderToday();
   }
