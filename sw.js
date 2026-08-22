@@ -1,5 +1,6 @@
 /* 筋トレノート – service worker */
-const CACHE = "kintore-note-v1";
+/* 中身を書きかえたら CACHE の番号を上げること（端末の古いキャッシュを捨てさせるため） */
+const CACHE = "kintore-note-v2";
 const ASSETS = [
   "./",
   "./index.html",
@@ -23,6 +24,20 @@ self.addEventListener("activate", e => {
   );
 });
 
+/* キャッシュ優先＋裏で更新。裏の更新は waitUntil で守らないと
+   応答を返した時点で SW が止められて、更新が永遠に終わらない */
+function cacheFirst(e, req) {
+  return caches.match(req).then(hit => {
+    const net = fetch(req).then(res => {
+      const copy = res.clone();
+      e.waitUntil(caches.open(CACHE).then(c => c.put(req, copy)));
+      return res;
+    }).catch(() => hit);
+    if (hit) { e.waitUntil(net.catch(() => {})); return hit; }
+    return net;
+  });
+}
+
 self.addEventListener("fetch", e => {
   const req = e.request;
   if (req.method !== "GET") return;
@@ -31,29 +46,25 @@ self.addEventListener("fetch", e => {
 
   // Google Fonts は取れたらキャッシュ、ダメならキャッシュから
   if (url.hostname.endsWith("googleapis.com") || url.hostname.endsWith("gstatic.com")) {
+    e.respondWith(cacheFirst(e, req));
+    return;
+  }
+
+  if (url.origin !== location.origin) return;
+
+  // 本体（index.html）はアプリのコードそのもの。ネット優先にしないと
+  // メニューを直しても端末に古いままの画面が出続ける
+  if (req.mode === "navigate" || req.destination === "document") {
     e.respondWith(
-      caches.match(req).then(hit =>
-        hit || fetch(req).then(res => {
-          const copy = res.clone();
-          caches.open(CACHE).then(c => c.put(req, copy));
-          return res;
-        }).catch(() => hit)
-      )
+      fetch(req).then(res => {
+        const copy = res.clone();
+        e.waitUntil(caches.open(CACHE).then(c => c.put(req, copy)));
+        return res;
+      }).catch(() => caches.match(req).then(hit => hit || caches.match("./index.html")))
     );
     return;
   }
 
-  // 同一オリジンはキャッシュ優先＋裏で更新
-  if (url.origin === location.origin) {
-    e.respondWith(
-      caches.match(req).then(hit => {
-        const net = fetch(req).then(res => {
-          const copy = res.clone();
-          caches.open(CACHE).then(c => c.put(req, copy));
-          return res;
-        }).catch(() => hit || caches.match("./index.html"));
-        return hit || net;
-      })
-    );
-  }
+  // アイコンなど中身の変わらないものはキャッシュ優先のまま
+  e.respondWith(cacheFirst(e, req));
 });
