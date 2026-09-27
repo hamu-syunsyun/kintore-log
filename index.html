@@ -569,7 +569,17 @@ function renderToday(){
   const isToday=draft.date===today();
   const existing=byDate(draft.date);
   const rec=recommendFor(draft.date) || (existing?existing.day:"A");
-  if(draft.day===null) draft.day=existing?existing.day:rec;
+  if(draft.day===null){
+    if(existing){
+      draft.day=existing.day;
+      draft.sets={};
+      existing.entries.forEach(en=>{
+        draft.sets[en.n]=en.v.map(g=>Array.isArray(g)?g.slice():[g]);
+      });
+    }else{
+      draft.day=rec;
+    }
+  }
   const plan=PLAN[draft.day];
 
   let ex="";
@@ -639,7 +649,7 @@ function renderToday(){
     <div class="hr"></div>
     ${ex}
     <button class="pb wide green" id="save-session" ${filled?"":"disabled"}>
-      ${filled?(existing?"上書きして記録する":"この内容で記録する"):"タップして回数を入れてね"}
+      ${filled?(existing?(existing.day===draft.day?"記録を更新する":`${existing.day}日の記録を${draft.day}日で上書きする`):"この内容で記録する"):"タップして回数を入れてね"}
     </button>
     ${existing?`<button class="pb wide faint" id="del-session">この日の記録を消す</button>`:""}`;
   const inp=document.querySelector(".slot.edit");
@@ -868,7 +878,17 @@ document.addEventListener("click",e=>{
     editing=null; stopRest(); return show("today");
   }
   if(t.hasAttribute("data-goto-today")){ draft={date:today(),day:null,sets:{}}; editing=null; return renderToday(); }
-  if(t.dataset.day){ draft.day=t.dataset.day; draft.sets={}; editing=null; stopRest(); return renderToday(); }
+  if(t.dataset.day){
+    draft.day=t.dataset.day;
+    draft.sets={};
+    const ex=byDate(draft.date);
+    if(ex && ex.day===draft.day){
+      ex.entries.forEach(en=>{
+        draft.sets[en.n]=en.v.map(g=>Array.isArray(g)?g.slice():[g]);
+      });
+    }
+    editing=null; stopRest(); return renderToday();
+  }
 
   if(t.dataset.fillex!=null){
     const e2=PLAN[draft.day].ex[+t.dataset.fillex], ns=sides(e2);
