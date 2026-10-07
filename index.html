@@ -95,8 +95,33 @@ h2{font-family:var(--pen);font-weight:600;font-size:17px;margin:26px 0 4px;
 .daybtn .n{font-size:11.5px;color:var(--ink-soft)}
 .daybtn[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 .daybtn[aria-pressed="true"] .n{color:rgba(255,255,255,.75)}
-.daybtn.rec::after{content:"◎ こっち";font-family:var(--note);font-size:10px;color:var(--red);margin-top:1px}
-.daybtn[aria-pressed="true"].rec::after{color:#F3C0B9}
+.daybtn{min-width:0}
+.daybtn .st{font-family:var(--note);font-size:10px;color:var(--green);margin-top:1px;white-space:nowrap}
+.daybtn .st.alt{color:var(--red)}
+.daybtn[aria-pressed="true"] .st{color:#BFE3CF}
+.daybtn[aria-pressed="true"] .st.alt{color:#F3C0B9}
+
+/* ---------- 今週の時間割 ---------- */
+.tt{margin-top:12px;padding:7px 10px 9px;background:#fff;border:1.5px solid #DCE3E9;border-radius:4px;
+  transform:rotate(-.25deg);box-shadow:2px 2px 0 rgba(34,49,78,.07)}
+.tt-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.tt-title{font-family:var(--pen);font-weight:600;font-size:14px}
+.tt-count{font-family:var(--note);font-size:11.5px;color:var(--ink-soft);white-space:nowrap}
+.tt-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;margin-top:5px}
+.tt-cell{position:relative;min-width:0;background:transparent;border:1.4px solid #DCE3E9;
+  border-radius:9px 6px 8px 5px;padding:2px 0 3px;display:flex;flex-direction:column;align-items:center;
+  line-height:1.25;color:var(--ink);font-family:var(--hand);cursor:default}
+.tt-wd{font-family:var(--note);font-size:10px;color:var(--ink-soft)}
+.tt-wd.sun{color:var(--red)} .tt-wd.sat{color:#3D6BA8}
+.tt-m{font-family:var(--pen);font-weight:600;font-size:17px}
+.tt-cell.rest .tt-m{font-family:var(--note);font-weight:400;font-size:12px;color:#B9C2CE;line-height:1.75}
+.tt-cell.today{background:var(--marker);border-color:var(--ink)}
+.tt-cell.miss{opacity:.38}
+.tt-cell .hm{position:absolute;left:50%;top:56%;width:min(38px,104%);aspect-ratio:1;
+  transform:translate(-50%,-50%) rotate(-8deg);color:var(--red);opacity:.6;pointer-events:none}
+.tt.editing .tt-cell{border:1.6px dashed var(--ink);cursor:pointer}
+.tt-foot{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:6px}
+.tt-foot .small{flex:1;line-height:1.5}
 
 /* ---------- 種目 ---------- */
 .ex{padding:10px 0 12px;border-bottom:1.5px dashed rgba(107,122,147,.35)}
@@ -140,7 +165,8 @@ h2{font-family:var(--pen);font-weight:600;font-size:17px;margin:26px 0 4px;
 .day.pad{visibility:hidden}
 .day .d{font-family:var(--pen);font-size:14px;line-height:1}
 .day .m{font-family:var(--note);font-size:10px;font-weight:600;line-height:1.1}
-.day .m.a{color:var(--green)} .day .m.b{color:#3D6BA8}
+.day .m.a{color:var(--green)} .day .m.b{color:#3D6BA8} .day .m.c{color:var(--red)}
+.day .m.plan{color:#B9C2CE;font-weight:400}
 .day .m.none{color:transparent}
 .day.future .d{color:#B9C2CE}
 .day.today::before{content:"";position:absolute;inset:6% 4%;border:2px solid var(--red);
@@ -158,6 +184,7 @@ h2{font-family:var(--pen);font-weight:600;font-size:17px;margin:26px 0 4px;
 .badge{font-family:var(--note);font-size:11px;color:var(--green);border:1.4px solid var(--green);
   border-radius:9px 6px 8px 5px;padding:0 7px;margin-left:7px}
 .badge.b{color:#3D6BA8;border-color:#3D6BA8}
+.badge.c{color:var(--red);border-color:var(--red)}
 
 /* ---------- 身体 ---------- */
 .fields{display:flex;gap:10px;margin-top:8px}
@@ -257,39 +284,68 @@ nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--paper);
 </div></nav>
 
 <script>
-/* ============ プラン ============ u=左右別 / sw=切替 / r=同じ側が空くまで ============ */
+/* ============ メニュー ============
+   u=左右別 / sw=切替 / r=同じ側が空くまで / k=主力（時短モードで残す種目）
+   C は A・B と種目名をそろえてあるので、段階の記録が共有される */
 const PLAN = {
   A:{ name:"上半身", ex:[
-    {n:"ダンベル腕立て伏せ", t:"13回 × 3", s:3, d:13, r:150},
-    {n:"ワンハンドロウ", t:"13回 × 5", s:5, d:13, r:75, u:1, sw:20},
-    {n:"デクライン腕立て伏せ", t:"8回 × 3", s:3, d:8, r:120},
-    {n:"ショルダープレス", t:"17回 × 3", s:3, d:17, r:60, u:1, sw:25},
+    {n:"ダンベル腕立て伏せ", t:"13回 × 3", s:3, d:13, r:150, k:1},
+    {n:"ワンハンドロウ", t:"13回 × 5", s:5, d:13, r:75, u:1, sw:20, k:1},
+    {n:"デクライン腕立て伏せ", t:"8回 × 3", s:3, d:8, r:120, k:1},
+    {n:"ショルダープレス", t:"17回 × 3", s:3, d:17, r:60, u:1, sw:25, k:1},
     {n:"サイドレイズ", t:"17回 × 3", s:3, d:17, r:50},
     {n:"リアレイズ", t:"15回 × 3", s:3, d:15, r:50},
     {n:"オーバーヘッドエクステンション", t:"15回 × 3", s:3, d:15, r:50},
     {n:"ハンマーカール", t:"15回 × 3", s:3, d:15, r:45}
   ]},
-  B:{ name:"下半身＋体幹＋前腕", ex:[
-    {n:"ブルガリアンスクワット", t:"15回 × 4", s:4, d:15, r:110, u:1, sw:40},
-    {n:"ゴブレットスクワット（下で2秒停止）", t:"15回 × 3", s:3, d:15, r:80},
-    {n:"片脚ルーマニアンデッドリフト", t:"14回 × 3", s:3, d:14, r:75, u:1, sw:30},
-    {n:"ヒップリフト", t:"20回 × 3", s:3, d:20, r:60},
+  B:{ name:"下半身＋前腕", ex:[
+    {n:"ブルガリアンスクワット", t:"15回 × 4", s:4, d:15, r:110, u:1, sw:40, k:1},
+    {n:"ゴブレットスクワット（下で2秒停止）", t:"15回 × 3", s:3, d:15, r:80, k:1},
+    {n:"片脚ルーマニアンデッドリフト", t:"14回 × 3", s:3, d:14, r:75, u:1, sw:30, k:1},
+    {n:"ヒップリフト", t:"20回 × 3", s:3, d:20, r:60, k:1},
     {n:"カーフレイズ", t:"22回 × 3", s:3, d:22, r:50, u:1, sw:20},
     {n:"デッドバグ", t:"10回 × 3（左右交互）", s:3, d:10, r:45},
     {n:"リストカール", t:"25回 × 3", s:3, d:25, r:40},
     {n:"リバースリストカール", t:"18回 × 3", s:3, d:18, r:40}
+  ]},
+  C:{ name:"全身（主力だけ）", ex:[
+    {n:"ダンベル腕立て伏せ", t:"13回 × 3", s:3, d:13, r:150, k:1},
+    {n:"ワンハンドロウ", t:"13回 × 4", s:4, d:13, r:75, u:1, sw:20, k:1},
+    {n:"ブルガリアンスクワット", t:"15回 × 3", s:3, d:15, r:110, u:1, sw:40, k:1},
+    {n:"片脚ルーマニアンデッドリフト", t:"14回 × 3", s:3, d:14, r:75, u:1, sw:30, k:1},
+    {n:"ショルダープレス", t:"17回 × 3", s:3, d:17, r:60, u:1, sw:25},
+    {n:"リストカール", t:"25回 × 2", s:2, d:25, r:40}
   ]}
 };
+const MENU_KEYS=["A","B","C"];
+const LABEL={A:"A",B:"B",C:"全"};                       /* 時間割・暦の略号 */
+const SHORT_NAME={A:"上半身",B:"下半身＋前腕",C:"全身"};  /* ボタンの小さい字 */
+const menuText=k=>k==="C"?"全身（主力だけ）":`${k}（${PLAN[k].name}）`;
+const menuWord=k=>k==="C"?"全身":k;                      /* 「火曜のA」「土曜の全身」 */
+const exOf=(k,short)=>PLAN[k].ex.map((e,i)=>({e,i})).filter(x=>!short||x.e.k);
 const STAGE_TXT=["","回数をきっちり","回数を増やす(〜20)","下ろすのを3〜4秒","片手・片脚に","セットを増やす"];
 const sides=e=>e.u?2:1;
 const SIDE_NAME=["左","右"];
 
 /* ============ 保存（localStorage） ============ */
 const KEY="kintore-note-v1";
-let DB={ sessions:[], body:[], stages:{}, auto:true, sound:true, bg:true, vol:0.75, tone:"station" };
+/* 時間割のキーは Date.getDay()（0=日）。"-" は休み */
+const DEFAULT_SCHEDULE={"0":"-","1":"A","2":"-","3":"B","4":"-","5":"-","6":"C"};
+const DEF=()=>({ sessions:[], body:[], stages:{}, auto:true, sound:true, bg:true, vol:0.75, tone:"station",
+  schedule:Object.assign({},DEFAULT_SCHEDULE), scheduleSince:null, short:false });
+let DB=DEF();
 function load(){
   try{ const raw=localStorage.getItem(KEY); if(raw) DB=Object.assign(DB,JSON.parse(raw)); }
   catch(e){ console.warn("読み込み失敗",e); }
+  normalize();
+}
+/* 足りない項目を補う。古いデータもこれでそのまま読める */
+function normalize(){
+  if(!DB.schedule||typeof DB.schedule!=="object") DB.schedule=Object.assign({},DEFAULT_SCHEDULE);
+  for(let i=0;i<7;i++){ const v=DB.schedule[i]; DB.schedule[i]=(v==="-"||PLAN[v])?v:"-"; }
+  /* 時間割を使い始めた週の月曜。これより前の日には予定を出さない */
+  if(!DB.scheduleSince){ DB.scheduleSince=weekDates(today())[0]; save(); }
+  DB.short=!!DB.short;
 }
 let st=null;
 function save(){
@@ -308,16 +364,41 @@ const today=()=>ymd(new Date());
 const diffDays=(a,b)=>Math.round((new Date(b)-new Date(a))/864e5);
 function jpDate(s){ const d=new Date(s+"T00:00:00");
   return `${d.getMonth()+1}月${d.getDate()}日 (${WD[d.getDay()]})`; }
+const addDays=(s,n)=>{ const d=new Date(s+"T00:00:00"); d.setDate(d.getDate()+n); return ymd(d); };
+const dow=s=>new Date(s+"T00:00:00").getDay();
+/* その日を含む週の月〜日 */
+function weekDates(s){ const mon=addDays(s,-((dow(s)+6)%7)); return Array.from({length:7},(_,i)=>addDays(mon,i)); }
 
 /* ============ 参照 ============ */
 const byDate=d=>DB.sessions.find(s=>s.date===d);
 const sorted=()=>DB.sessions.slice().sort((a,b)=>a.date<b.date?-1:1);
-function lastBefore(d){ const a=sorted().filter(s=>s.date<d); return a.length?a[a.length-1]:null; }
-function recommendFor(d){
-  if(byDate(d)) return null;
-  const l=lastBefore(d); if(!l) return "A";
-  return l.day==="A"?"B":"A";
+/* その日の予定。時間割を使い始める前の日は常に休み（過去の記録に後から予定を付けない） */
+function planOf(s){ if(!DB.scheduleSince||s<DB.scheduleSince) return "-"; return DB.schedule[dow(s)]||"-"; }
+/* その週の、指定日より前の予定のうち、まだやっていないもの。
+   同じ週に同じメニューをやっていれば消化済みとみなす */
+function weekStatus(s){
+  const days=weekDates(s), planned=[], done=[];
+  days.forEach(d=>{
+    const p=planOf(d), r=byDate(d);
+    if(d<s&&p!=="-") planned.push({date:d,menu:p});
+    /* 当日の記録は、当日の予定と違うメニュー（＝振替）のときだけ数える */
+    if(r&&(d<s||(d===s&&r.day!==p))) done.push(r.day);
+  });
+  const pending=[];
+  planned.forEach(x=>{ const i=done.indexOf(x.menu); if(i>=0) done.splice(i,1); else pending.push(x); });
+  return {days,pending,
+    planCount:days.filter(d=>planOf(d)!=="-").length,
+    doneCount:days.filter(d=>byDate(d)).length};
 }
+/* 今日タブで最初に選ばれるメニュー。記録 → 予定 → 振替 → 休み("-") */
+function chooseDraftDay(s){
+  const ex=byDate(s); if(ex) return ex.day;
+  const p=planOf(s); if(p!=="-") return p;
+  const pd=weekStatus(s).pending; if(pd.length) return pd[0].menu;
+  return "-";
+}
+/* 指定日より後で、最初の予定日 */
+function nextPlan(s){ for(let i=1;i<=7;i++){ const d=addDays(s,i), p=planOf(d); if(p!=="-") return {date:d,menu:p}; } return null; }
 const stageOf=n=>DB.stages[n]||1;
 
 /* ============ 状態 ============ */
@@ -559,34 +640,93 @@ function renderHeader(){
   const d=new Date();
   document.getElementById("today-str").textContent=
     `${d.getFullYear()}年 ${d.getMonth()+1}月 ${d.getDate()}日 ${WD[d.getDay()]}曜日`;
-  const t=today(), doneToday=byDate(t), l=lastBefore(t);
+  const t=today(), doneToday=byDate(t), p=planOf(t), wday=s=>WD[dow(s)]+"曜";
   let s;
-  if(doneToday) s=`今日は ${doneToday.day}日 を実施済み。お疲れさま。`;
-  else if(!l) s="まだ記録がありません。A日から始めましょう。";
-  else s=`前回は ${md(l.date)} の ${l.day}日（${diffDays(l.date,t)}日前）。次は ${recommendFor(t)}日。`;
+  if(doneToday) s=`今日は ${menuText(doneToday.day)} を実施済み。お疲れさま。`;
+  else if(p!=="-") s=`今日は${wday(t)}、${menuText(p)}の日。`;
+  else{
+    const pd=weekStatus(t).pending, nx=nextPlan(t);
+    if(pd.length) s=`今日は休みの日。${pd.map(x=>wday(x.date)+"の"+menuWord(x.menu)).join("と")}がまだ残っているので、振替でやってもいい。`;
+    else if(nx) s=`今日は休み。次は${wday(nx.date)}の${menuText(nx.menu)}。`;
+    else s="時間割が全部休みになっています。今日タブの「時間割を変える」から決められます。";
+  }
   document.getElementById("headline").textContent=s;
+}
+
+/* ============ 今週の時間割 ============ */
+/* 花丸：外側の花びら8枚と中のうずまき */
+const HANAMARU=(()=>{
+  let d="";
+  for(let i=0;i<=96;i++){ const a=i/96*Math.PI*2-1.2, r=15+2.8*Math.abs(Math.sin(a*4));
+    d+=(i?"L":"M")+(20+r*Math.cos(a)).toFixed(1)+" "+(20+r*Math.sin(a)).toFixed(1); }
+  for(let i=0;i<=60;i++){ const a=i/60*Math.PI*4.6, r=2.5+i/60*7.5;
+    d+=(i?"L":" M")+(20+r*Math.cos(a)).toFixed(1)+" "+(20+r*Math.sin(a)).toFixed(1); }
+  return `<svg class="hm" viewBox="0 0 40 40" aria-hidden="true"><path d="${d}" fill="none"
+    stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+})();
+let ttEdit=false;
+const CYCLE=["-","A","B","C"];                         /* タップで 休→A→B→全→休 */
+function timetable(){
+  const t=today(), ws=weekStatus(t);
+  const cells=ws.days.map(d=>{
+    const p=planOf(d), w=dow(d), done=byDate(d), cls=["tt-cell"];
+    if(p==="-") cls.push("rest");
+    if(d===t) cls.push("today");
+    if(!done&&p!=="-"&&d<t) cls.push("miss");          /* 予定日を過ぎてやっていない */
+    const mark=ttEdit?(DB.schedule[w]==="-"?"休":LABEL[DB.schedule[w]]):(p==="-"?"休":LABEL[p]);
+    return `<button class="${cls.join(" ")}" ${ttEdit?`data-tt="${w}"`:"tabindex=\"-1\""}
+      aria-label="${WD[w]}曜 ${mark}${done?" 実施済み":""}">
+      <span class="tt-wd${w===0?" sun":w===6?" sat":""}">${WD[w]}</span>
+      <span class="tt-m">${mark}</span>${done&&!ttEdit?HANAMARU:""}</button>`;
+  }).join("");
+  return `<div class="tt${ttEdit?" editing":""}">
+    <div class="tt-head"><span class="tt-title">今週の時間割</span>
+      <span class="tt-count">今週 ${ws.doneCount} / ${ws.planCount} 回</span></div>
+    <div class="tt-grid">${cells}</div>
+    <div class="tt-foot">${ttEdit
+      ?`<span class="small">曜日をタップすると 休→A→B→全 と変わります</span><button class="pb sm on" id="tt-edit">できた</button>`
+      :`<button class="pb sm" id="tt-edit">時間割を変える</button>`}</div>
+  </div>`;
 }
 
 /* ============ 今日 ============ */
 function renderToday(){
   const isToday=draft.date===today();
   const existing=byDate(draft.date);
-  const rec=recommendFor(draft.date) || (existing?existing.day:"A");
   if(draft.day===null){
+    draft.day=chooseDraftDay(draft.date);
     if(existing){
-      draft.day=existing.day;
       draft.sets={};
       existing.entries.forEach(en=>{
         draft.sets[en.n]=en.v.map(g=>Array.isArray(g)?g.slice():[g]);
       });
-    }else{
-      draft.day=rec;
     }
   }
-  const plan=PLAN[draft.day];
+  const plan=PLAN[draft.day];                           /* 休みのときは undefined */
+  const planned=planOf(draft.date), pend=weekStatus(draft.date).pending.map(x=>x.menu);
+  const status=k=>existing&&existing.day===k?"記録済み"
+    :planned===k?(isToday?"今日の予定":"この日の予定")
+    :pend.includes(k)?"振替できる":"";
+  const daybtns=MENU_KEYS.map(k=>{ const st=status(k);
+    return `<button class="daybtn" data-day="${k}" aria-pressed="${draft.day===k}">
+      <span class="k">${LABEL[k]}</span><span class="n">${SHORT_NAME[k]}</span>
+      <span class="st${st==="振替できる"?" alt":""}">${st||"&nbsp;"}</span></button>`; }).join("");
+  const top=`${isToday?"":`<div class="banner"><span>${jpDate(draft.date)} を記録中</span>
+      <button class="pb sm red" data-goto-today>今日に戻す</button></div>`}
+    ${isToday?timetable():""}
+    <div class="dayswitch">${daybtns}</div>`;
 
+  if(!plan){
+    document.getElementById("view-today").innerHTML=`${top}
+      <h2>${isToday?"今日は休み":"この日は予定なし"}</h2>
+      <p class="small">${isToday?"ゆっくり休んでください。やるときは上のボタンからメニューを選べます。"
+        :"記録するときは上のボタンからメニューを選んでください。"}</p>`;
+    return;
+  }
+
+  const shown=exOf(draft.day,DB.short);
   let ex="";
-  plan.ex.forEach((e,i)=>{
+  shown.forEach(({e,i})=>{
     const ns=sides(e);
     let groups="";
     for(let k=0;k<e.s;k++){
@@ -628,24 +768,17 @@ function renderToday(){
   });
 
   const filled=countFilled();
-  document.getElementById("view-today").innerHTML=`
-    ${isToday?"":`<div class="banner"><span>${jpDate(draft.date)} を記録中</span>
-      <button class="pb sm red" data-goto-today>今日に戻す</button></div>`}
-    <div class="dayswitch">
-      <button class="daybtn${rec==="A"?" rec":""}" data-day="A" aria-pressed="${draft.day==="A"}">
-        <span class="k">A</span><span class="n">上半身</span></button>
-      <button class="daybtn${rec==="B"?" rec":""}" data-day="B" aria-pressed="${draft.day==="B"}">
-        <span class="k">B</span><span class="n">下半身＋体幹</span></button>
-    </div>
-
-    <h2>${draft.day}日 ／ ${plan.name}</h2>
-    <p class="small" id="cnt">${filled} 箇所 入力済み</p>
+  document.getElementById("view-today").innerHTML=`${top}
+    <h2>${draft.day==="C"?plan.name:`${draft.day}日 ／ ${plan.name}`}</h2>
+    <p class="small" id="cnt">${filled} 箇所 入力済み${DB.short?`　（主力だけ表示中：${shown.length} / ${plan.ex.length} 種目）`:""}</p>
     <button class="pb wide" id="fill-all">規定回数で 全部 入力する</button>
     <div class="row">
       <button class="toggle" id="auto" aria-pressed="${DB.auto?"true":"false"}">
         <span class="chk"></span>自動タイマー</button>
       <button class="toggle" id="sound" aria-pressed="${DB.sound?"true":"false"}">
         <span class="chk"></span>終了時に音を鳴らす</button>
+      <button class="toggle" id="short" aria-pressed="${DB.short?"true":"false"}">
+        <span class="chk"></span>主力だけ（時短）</button>
     </div>
     <p class="note">枠をタップすると規定回数が入ります。もう一度タップで数字を直せて、長押しで消えます。
     左右別の種目は、左と右がそれぞれ「次に使えるまで」を計測します。</p>
@@ -663,33 +796,38 @@ function renderToday(){
 const fmtEntry=e=>e.v.map(g=>Array.isArray(g)?g.join("/"):g).join(" ・ ");
 function renderCal(){
   const days=new Date(cal.y,cal.m+1,0).getDate();
-  const lead=new Date(cal.y,cal.m,1).getDay();
-  const t=today();
-  let cells="";
-  WD.forEach((w,i)=>cells+=`<div class="wd${i===0?" sun":i===6?" sat":""}">${w}</div>`);
+  const lead=(new Date(cal.y,cal.m,1).getDay()+6)%7;   /* 月曜始まり */
+  const t=today(), cnt={A:0,B:0,C:0};
+  let cells="", planTo=0;
+  [1,2,3,4,5,6,0].forEach(i=>cells+=`<div class="wd${i===0?" sun":i===6?" sat":""}">${WD[i]}</div>`);
   for(let i=0;i<lead;i++) cells+=`<button class="day pad" disabled></button>`;
-  let cntA=0,cntB=0;
   for(let d=1;d<=days;d++){
     const key=`${cal.y}-${String(cal.m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
-    const s=byDate(key);
-    if(s){ if(s.day==="A") cntA++; else cntB++; }
-    const mark=s?`<span class="m ${s.day==="A"?"a":"b"}">${s.day}</span>`:`<span class="m none">・</span>`;
+    const s=byDate(key), p=planOf(key);
+    if(s&&cnt[s.day]!=null) cnt[s.day]++;
+    if(p!=="-"&&key<=t) planTo++;
+    const mark=s?`<span class="m ${s.day.toLowerCase()}">${LABEL[s.day]||s.day}</span>`
+      :p!=="-"?`<span class="m plan">${LABEL[p]}</span>`     /* 記録のない日は予定を薄く */
+      :`<span class="m none">・</span>`;
     const cls=["day"];
     if(key===t) cls.push("today");
     if(key===cal.sel) cls.push("sel");
     if(key>t) cls.push("future");
     cells+=`<button class="${cls.join(" ")}" data-pick="${key}"><span class="d">${d}</span>${mark}</button>`;
   }
-  const s=byDate(cal.sel); let panel;
+  const s=byDate(cal.sel), sp=planOf(cal.sel); let panel;
   if(s){
     panel=`<div><span class="dp-date">${jpDate(cal.sel)}</span>
-      <span class="badge${s.day==="B"?" b":""}">${s.day}日</span></div>
+      <span class="badge ${s.day.toLowerCase()}">${s.day==="C"?"全身":s.day+"日"}</span></div>
       <div class="dp-list">${s.entries.map(e=>`${e.n} … ${fmtEntry(e)}`).join("<br>")}</div>
       <button class="pb sm" data-edit="${cal.sel}" style="margin-top:8px">この日を修正</button>`;
   }else{
     const future=cal.sel>t;
+    const msg=sp!=="-"
+      ?(cal.sel>=t?`予定：${menuText(sp)}`:`予定は${menuWord(sp)}だった日。記録なし`)
+      :(future?"未来の日付です。":"記録なし（休養日）");
     panel=`<div><span class="dp-date">${jpDate(cal.sel)}</span></div>
-      <div class="dp-list">${future?"未来の日付です。":"記録なし（休養日）"}</div>
+      <div class="dp-list">${msg}</div>
       ${future?"":`<button class="pb sm" data-edit="${cal.sel}" style="margin-top:8px">この日に記録する</button>`}`;
   }
   const now=new Date(), isNow=(cal.y===now.getFullYear()&&cal.m===now.getMonth());
@@ -702,8 +840,9 @@ function renderCal(){
     <div class="cal-grid">${cells}</div>
     <div class="daypanel">${panel}</div>
     <h2>今月の集計</h2>
-    <p class="small">A日 ${cntA} 回　／　B日 ${cntB} 回　　あわせて ${cntA+cntB} 回</p>
-    <p class="note">赤丸が今日。A＝上半身、B＝下半身＋体幹。左右別の種目は「左/右」で並びます。</p>`;
+    <p class="small">A ${cnt.A}回 ／ B ${cnt.B}回 ／ 全身 ${cnt.C}回　合計 ${cnt.A+cnt.B+cnt.C}回（今日までの予定 ${planTo}回）</p>
+    <p class="note">赤丸が今日。A＝上半身、B＝下半身＋前腕、全＝全身（主力だけ）。
+    薄い字は時間割の予定。左右別の種目は「左/右」で並びます。</p>`;
 }
 
 /* ============ 身体 ============ */
@@ -733,6 +872,18 @@ function renderBody(){
       <span>${md(b[0].d)} → ${md(b[b.length-1].d)}</span></div>`;
   }
   const last=DB.body.length?DB.body[DB.body.length-1]:null;
+  /* 最初の1回だけと比べるとぶれが大きいので、最初の3回の平均と比べる */
+  let cmp="";
+  if(DB.body.length>=5){
+    const line=(k,lab)=>{
+      const v=DB.body.map(x=>x[k]).filter(x=>x!=null);
+      if(v.length<5) return "";
+      const base=(v[0]+v[1]+v[2])/3, now=v[v.length-1], df=now-base;
+      return `<div class="small">${lab}　最初の3回の平均 ${base.toFixed(1)} → 最新 ${now.toFixed(1)}
+        （${df>=0?"+":"−"}${Math.abs(df).toFixed(1)}）</div>`;
+    };
+    cmp=line("w","体重")+line("m","筋肉量");
+  }
   const rows=DB.body.slice(-12).reverse().map(x=>
     `<div class="small">${md(x.d)}　体重 ${x.w==null?"—":x.w} ／ 筋肉量 ${x.m==null?"—":x.m} ／ スコア ${x.s==null?"—":x.s}</div>`
   ).join("");
@@ -749,6 +900,7 @@ function renderBody(){
     </div>
     <button class="pb wide green" id="save-body">今日の数値を保存</button>
     ${chart}
+    ${cmp?`<div style="margin-top:8px">${cmp}</div>`:""}
     <p class="note">朝起きてトイレの後に測ると誤差が少ないです。体重は週1回、筋肉量は月1回で十分。</p>
     <div class="hr"></div>
     <h2>これまで</h2>
@@ -863,6 +1015,15 @@ document.addEventListener("click",e=>{
     return document.getElementById("view-set").classList.contains("hide")?renderToday():renderSet(); }
   if(t.dataset.tone){ DB.tone=t.dataset.tone; save(); resyncAlarms(); beep("set"); return renderSet(); }
   if(t.id==="voltest"){ beep("set"); return; }
+  if(t.id==="tt-edit"){ ttEdit=!ttEdit; return renderToday(); }
+  if(t.dataset.tt!=null){
+    const w=+t.dataset.tt, cur=CYCLE.indexOf(DB.schedule[w]);
+    DB.schedule[w]=CYCLE[(cur+1)%CYCLE.length];
+    /* 予定が変わったら、記録も入力もまだない日だけメニューを選び直す（入力中の回数は消さない） */
+    if(!byDate(draft.date)&&!countFilled()){ draft.day=null; draft.sets={}; }
+    save(); renderHeader(); return renderToday();
+  }
+  if(t.id==="short"){ DB.short=!DB.short; save(); return renderToday(); }
   if(t.id==="bg"){ DB.bg=!DB.bg; save(); resyncAlarms();
     return document.getElementById("view-set").classList.contains("hide")?renderToday():renderSet(); }
   if(t.id==="sound"){ DB.sound=!DB.sound; save(); resyncAlarms(); if(DB.sound) beep("set");
@@ -902,7 +1063,7 @@ document.addEventListener("click",e=>{
     editing=null; return renderToday();
   }
   if(t.id==="fill-all"){
-    PLAN[draft.day].ex.forEach(e2=>{
+    exOf(draft.day,DB.short).forEach(({e:e2})=>{
       const ns=sides(e2);
       draft.sets[e2.n]=Array.from({length:e2.s},()=>Array.from({length:ns},()=>String(e2.d)));
     });
@@ -960,8 +1121,7 @@ document.addEventListener("click",e=>{
   if(t.id==="wipe"){
     if(!confirm("すべての記録を消します。よろしいですか？")) return;
     if(!confirm("本当に消しますか？元に戻せません。")) return;
-    DB={ sessions:[], body:[], stages:{}, auto:true, sound:true, bg:true, vol:0.75, tone:"station" };
-    localStorage.removeItem(KEY);
+    DB=DEF(); localStorage.removeItem(KEY); normalize();
     renderHeader(); return show("set");
   }
 });
@@ -976,7 +1136,12 @@ document.addEventListener("change",e=>{
       const j=JSON.parse(r.result);
       if(!j||!Array.isArray(j.sessions)) throw new Error("形式ちがい");
       if(!confirm(`トレーニング ${j.sessions.length} 件を読み込みます。現在の記録は上書きされます。`)) return;
-      DB=Object.assign({sessions:[],body:[],stages:{},auto:true,sound:true,bg:true,vol:0.75,tone:"station"}, j);
+      /* 時間割を持たない古い書き出しファイルなら、いまの時間割を残す */
+      const keep={schedule:DB.schedule,scheduleSince:DB.scheduleSince,short:DB.short};
+      DB=Object.assign(DEF(), j);
+      if(!j.schedule){ DB.schedule=keep.schedule; DB.scheduleSince=keep.scheduleSince; }
+      if(j.short==null) DB.short=keep.short;
+      normalize();
       save(); renderHeader(); show("set");
       alert("読み込みが完了しました。");
     }catch(err){ alert("読み込みに失敗しました："+err.message); }
