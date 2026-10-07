@@ -1,6 +1,6 @@
 /* 筋トレノート – service worker */
 /* 中身を書きかえたら CACHE の番号を上げること（端末の古いキャッシュを捨てさせるため） */
-const CACHE = "kintore-note-v3";
+const CACHE = "kintore-note-v4";
 const ASSETS = [
   "./",
   "./index.html",

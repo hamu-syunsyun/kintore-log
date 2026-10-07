@@ -13,15 +13,19 @@
 <link rel="icon" href="./icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Zen+Kurenaido&family=Klee+One:wght@400;600&family=Yomogi&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kurenaido&family=Klee+One:wght@400;600&display=swap" rel="stylesheet">
 
 <style>
 :root{
   --paper:#FCFCF7;
-  --rule:#CFE0EA;          /* ノートの罫線 */
+  --rule:#DCE7EE;          /* ノートの罫線。文字より前に出ない濃さ */
   --margin:#E6ADA6;        /* 縦の朱線 */
   --ink:#22314E;           /* 青黒インク */
-  --ink-soft:#6B7A93;
+  --ink-soft:#66758D;
+  --ink-faint:#A3AEBD;     /* 予定・目安など、まだ書いていないもの */
+  --line:#C9D2DD;          /* 鉛筆の枠 */
+  /* ペンの色には意味を一つずつ持たせる
+     青黒＝書いたもの / 緑＝やった / 赤＝先生の印（今日・花丸・注意） / 黄マーカー＝いま */
   --red:#C2453A;           /* 赤ペン */
   --green:#2F7A52;         /* 緑ペン */
   --marker:#FBF0A6;        /* 蛍光ペン */
@@ -29,7 +33,7 @@
   --tape:#EFE7CE;
   --hand:"Zen Kurenaido","Hiragino Sans",sans-serif;
   --pen:"Klee One","Hiragino Mincho ProN",serif;
-  --note:"Yomogi","Hiragino Sans",sans-serif;
+  --note:var(--hand);
   --lh:28px;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -53,13 +57,15 @@ body{
 .hand{font-family:var(--note)}
 
 /* ---------- 見出し ---------- */
-header{padding:22px 0 6px}
-.date-scrawl{font-family:var(--note);font-size:12px;color:var(--red);
-  transform:rotate(-1.2deg);display:inline-block}
-h1{font-family:var(--pen);font-weight:600;font-size:26px;margin:2px 0 0;letter-spacing:.03em;
-  display:inline-block;
-  background:linear-gradient(transparent 62%, var(--marker) 62% 94%, transparent 94%)}
-.sub{margin:2px 0 0;font-size:13.5px;color:var(--ink-soft);line-height:var(--lh)}
+header{padding:18px 0 4px}
+.hd-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.date-scrawl{font-size:13px;color:var(--red);transform:rotate(-1.2deg);display:inline-block}
+h1{font-family:var(--pen);font-weight:600;font-size:12.5px;margin:0;letter-spacing:.08em;color:var(--ink-soft)}
+.headline{margin:6px 0 0;font-family:var(--pen);font-weight:600;font-size:19px;line-height:1.55;
+  letter-spacing:.01em;color:var(--ink)}
+.headline .nw{white-space:nowrap}
+.headline mark{color:inherit;background:linear-gradient(transparent 58%, var(--marker) 58% 92%, transparent 92%);
+  padding:0 2px}
 
 h2{font-family:var(--pen);font-weight:600;font-size:17px;margin:26px 0 4px;
   display:inline-block;letter-spacing:.02em;
@@ -72,27 +78,34 @@ h2{font-family:var(--pen);font-weight:600;font-size:17px;margin:26px 0 4px;
 
 /* ---------- ボタン共通（ペンで囲った感じ） ---------- */
 .pb{font-family:var(--hand);font-size:14px;color:var(--ink);cursor:pointer;
-  background:transparent;border:1.6px solid var(--ink);
+  background:var(--paper);border:1.6px solid var(--ink);
   border-radius:14px 9px 13px 8px;padding:6px 13px;line-height:1.35}
-.pb.sm{font-size:12px;padding:3px 10px;border-width:1.4px;border-radius:11px 7px 10px 6px}
+.pb.sm{font-size:12.5px;min-height:32px;padding:4px 10px;border-width:1.4px;border-radius:11px 7px 10px 6px}
+.pb.q{border-color:var(--line)}                        /* 種目ごとに並ぶ控えめなボタン */
 .pb.red{border-color:var(--red);color:var(--red)}
 .pb.green{border-color:var(--green);color:var(--green)}
-.pb.on{background:var(--ink);color:var(--paper)}
+.pb.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
 .pb.green.on{background:var(--green);border-color:var(--green);color:#fff}
-.pb.faint{border-color:#C3CCD8;color:var(--ink-soft)}
+.pb.faint{border-color:var(--line);color:var(--ink-soft)}
 .pb:disabled{opacity:.4;cursor:default}
+/* 記録ボタンは、押せるときだけ緑で塗る */
+#save-session:not(:disabled){background:var(--green);border-color:var(--green);color:#fff}
+#save-session:disabled{opacity:1;border-color:var(--line);color:var(--ink-faint)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 .wide{display:block;width:100%;text-align:center;padding:11px;font-size:15px;margin-top:14px;
   border-radius:16px 10px 15px 9px}
 .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px}
 
 /* ---------- A/B 切替 ---------- */
-.dayswitch{display:flex;gap:12px;margin-top:12px}
-.daybtn{flex:1;background:transparent;border:2px solid var(--ink);cursor:pointer;
-  border-radius:16px 11px 15px 10px;padding:9px 6px;color:var(--ink);font-family:var(--hand);
-  display:flex;flex-direction:column;align-items:center;line-height:1.3;transform:rotate(-.3deg)}
+.dayswitch{display:flex;gap:8px;margin-top:14px}
+.daybtn{flex:1;background:var(--paper);border:1.8px solid var(--ink);cursor:pointer;
+  border-radius:14px 10px 13px 9px;padding:5px 4px 4px;color:var(--ink);font-family:var(--hand);
+  display:grid;grid-template-columns:auto auto;justify-content:center;align-items:baseline;column-gap:6px;
+  line-height:1.3;transform:rotate(-.3deg)}
 .daybtn:last-child{transform:rotate(.4deg)}
-.daybtn .k{font-family:var(--pen);font-weight:600;font-size:21px}
+.daybtn .k{font-family:var(--pen);font-weight:600;font-size:19px}
 .daybtn .n{font-size:11.5px;color:var(--ink-soft)}
+.daybtn .st{grid-column:1/-1;text-align:center}
 .daybtn[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 .daybtn[aria-pressed="true"] .n{color:rgba(255,255,255,.75)}
 .daybtn{min-width:0}
@@ -102,8 +115,8 @@ h2{font-family:var(--pen);font-weight:600;font-size:17px;margin:26px 0 4px;
 .daybtn[aria-pressed="true"] .st.alt{color:#F3C0B9}
 
 /* ---------- 今週の時間割 ---------- */
-.tt{margin-top:12px;padding:7px 10px 9px;background:#fff;border:1.5px solid #DCE3E9;border-radius:4px;
-  transform:rotate(-.25deg);box-shadow:2px 2px 0 rgba(34,49,78,.07)}
+.tt{margin-top:14px;padding:7px 10px 9px;background:#fff;border:1.5px solid #DCE3E9;border-radius:4px;
+  box-shadow:2px 2px 0 rgba(34,49,78,.07)}
 .tt-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .tt-title{font-family:var(--pen);font-weight:600;font-size:14px}
 .tt-count{font-family:var(--note);font-size:11.5px;color:var(--ink-soft);white-space:nowrap}
@@ -124,21 +137,32 @@ h2{font-family:var(--pen);font-weight:600;font-size:17px;margin:26px 0 4px;
 .tt-foot .small{flex:1;line-height:1.5}
 
 /* ---------- 種目 ---------- */
-.ex{padding:10px 0 12px;border-bottom:1.5px dashed rgba(107,122,147,.35)}
+.sec-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:22px}
+.sec-head h2{margin:0}
+.prog{font-family:var(--pen);font-weight:600;font-size:15px;color:var(--ink);white-space:nowrap}
+.prog::after{content:" セット";font-family:var(--hand);font-weight:400;font-size:11.5px;color:var(--ink-soft)}
+.tools{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin:8px 0 2px;
+  padding-bottom:10px;border-bottom:1.5px dashed rgba(102,117,141,.3)}
+.tools #fill-all{margin-left:auto}
+.ex{padding:12px 0 12px;border-bottom:1.5px dashed rgba(102,117,141,.3)}
 .ex.live{box-shadow:-9px 0 0 -6px var(--green)}
 .ex-head{display:flex;justify-content:space-between;align-items:baseline;gap:0 8px;flex-wrap:wrap}
 .ex-name{font-family:var(--pen);font-weight:600;font-size:16px;flex-shrink:0;max-width:100%}
 .ex-tag{font-family:var(--note);font-size:10px;color:var(--red);border:1.3px solid var(--red);
   border-radius:8px 5px 7px 4px;padding:0 5px;margin-left:6px;vertical-align:2px}
-.ex-target{font-family:var(--note);font-size:11.5px;color:var(--ink-soft);white-space:nowrap;margin-left:auto}
+.ex-target{font-family:var(--note);font-size:12px;color:var(--ink-soft);white-space:nowrap;margin-left:auto}
+/* 全セット入れた種目は、名前の横に緑ペンのチェック */
+.ex.done .ex-name{color:var(--green)}
+.ex.done .ex-name::after{content:"";display:inline-block;width:11px;height:6px;margin-left:8px;vertical-align:4px;
+  border-left:2.4px solid var(--green);border-bottom:2.4px solid var(--green);transform:rotate(-48deg)}
 .sets{display:flex;gap:10px;margin-top:9px;flex-wrap:wrap}
 .grp{display:flex;flex-direction:column;gap:2px}
 .grp-lab{display:flex;gap:5px;font-family:var(--note);font-size:9.5px;color:var(--ink-soft)}
 .grp-lab span{flex:1;text-align:center}
 .pair{display:flex;gap:5px}
 .slot{width:48px;height:42px;cursor:pointer;padding:0;
-  font-family:var(--pen);font-weight:600;font-size:17px;color:#B9C2CE;
-  background:transparent;border:1.8px solid #C3CCD8;
+  font-family:var(--pen);font-weight:600;font-size:17px;color:#B4BECB;
+  background:var(--paper);border:1.8px solid var(--line);
   border-radius:13px 8px 12px 7px;
   display:flex;align-items:center;justify-content:center;transform:rotate(-.4deg)}
 .slot:nth-child(2){transform:rotate(.5deg)}
@@ -146,11 +170,12 @@ h2{font-family:var(--pen);font-weight:600;font-size:17px;margin:26px 0 4px;
 .slot.on{color:var(--green);border-color:var(--green);border-width:2px;
   background:rgba(205,235,221,.4)}
 .slot.edit{color:var(--ink);border-color:var(--ink);background:#fff;text-align:center}
-.stage-wrap{display:flex;gap:5px;align-items:center;margin-left:auto;flex:0 0 auto}
-.stage{display:flex;gap:2.5px;align-items:center}
-.stage-lab{font-family:var(--note);font-size:10px;color:var(--ink-soft)}
-.seg{width:13px;height:13px;border-radius:50%;border:1.5px solid #C3CCD8;background:transparent;
-  padding:0;cursor:pointer}
+/* 段階：丸5つ全体が1つのボタン。押すたびに次の段階へ（5の次は1） */
+.stage-wrap{display:flex;gap:6px;align-items:center;margin-left:auto;flex:0 0 auto;min-height:32px;
+  padding:0 2px 0 6px;background:var(--paper);border:none;cursor:pointer;color:var(--ink);border-radius:8px}
+.stage{display:flex;gap:3px;align-items:center}
+.stage-lab{font-family:var(--note);font-size:11px;color:var(--ink-soft)}
+.seg{width:12px;height:12px;border-radius:50%;border:1.5px solid var(--line);display:block}
 .seg.on{background:var(--red);border-color:var(--red)}
 
 /* ---------- カレンダー ---------- */
@@ -165,8 +190,8 @@ h2{font-family:var(--pen);font-weight:600;font-size:17px;margin:26px 0 4px;
 .day.pad{visibility:hidden}
 .day .d{font-family:var(--pen);font-size:14px;line-height:1}
 .day .m{font-family:var(--note);font-size:10px;font-weight:600;line-height:1.1}
-.day .m.a{color:var(--green)} .day .m.b{color:#3D6BA8} .day .m.c{color:var(--red)}
-.day .m.plan{color:#B9C2CE;font-weight:400}
+.day .m.done{color:var(--green)}
+.day .m.plan{color:var(--ink-faint);font-weight:400}
 .day .m.none{color:transparent}
 .day.future .d{color:#B9C2CE}
 .day.today::before{content:"";position:absolute;inset:6% 4%;border:2px solid var(--red);
@@ -179,12 +204,13 @@ h2{font-family:var(--pen);font-weight:600;font-size:17px;margin:26px 0 4px;
   box-shadow:2px 2px 0 rgba(34,49,78,.07);position:relative}
 .daypanel::before{content:"";position:absolute;top:-9px;left:50%;transform:translateX(-50%) rotate(-2deg);
   width:56px;height:17px;background:var(--tape);opacity:.9;border-radius:2px}
+.sum{margin:2px 0 0;display:flex;align-items:baseline;gap:4px}
+.sum b{font-family:var(--pen);font-weight:600;font-size:26px;line-height:1.2}
+.sum span{margin-left:10px;font-size:12.5px;color:var(--ink-soft)}
 .dp-date{font-family:var(--pen);font-weight:600;font-size:15px}
 .dp-list{font-size:13px;color:var(--ink-soft);line-height:1.9}
-.badge{font-family:var(--note);font-size:11px;color:var(--green);border:1.4px solid var(--green);
+.badge{font-family:var(--note);font-size:11.5px;color:var(--green);border:1.4px solid var(--green);
   border-radius:9px 6px 8px 5px;padding:0 7px;margin-left:7px}
-.badge.b{color:#3D6BA8;border-color:#3D6BA8}
-.badge.c{color:var(--red);border-color:var(--red)}
 
 /* ---------- 身体 ---------- */
 .fields{display:flex;gap:10px;margin-top:8px}
@@ -194,9 +220,23 @@ h2{font-family:var(--pen);font-weight:600;font-size:17px;margin:26px 0 4px;
   border:none;border-bottom:2px solid #C3CCD8;text-align:center;
   font-family:var(--pen);font-weight:600;font-size:19px}
 .field input:focus{outline:none;border-bottom-color:var(--red)}
-.chart{width:100%;height:138px;display:block;margin-top:10px}
-.legend{display:flex;gap:14px;font-family:var(--note);font-size:11px;color:var(--ink-soft);margin-top:2px}
-.swatch{display:inline-block;width:15px;height:2.5px;vertical-align:middle;margin-right:5px}
+.field .prev{display:block;text-align:center;font-size:11px;color:var(--ink-faint);line-height:1.8;min-height:1.8em}
+.spark{margin:14px 0 0;position:relative}
+.spark figcaption{display:flex;align-items:baseline;gap:6px}
+.sp-name{font-family:var(--pen);font-weight:600;font-size:14px}
+.sp-unit{font-size:11px;color:var(--ink-soft)}
+.spark svg{width:100%;height:auto;display:block;overflow:visible;touch-action:pan-y}
+.sp-grid{stroke:var(--line);stroke-width:1;stroke-dasharray:2 4}
+.sp-ax{font-family:var(--hand);font-size:10.5px;fill:var(--ink-soft)}
+.sp-line{fill:none;stroke:var(--ink);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.sp-dot{fill:var(--ink);stroke:var(--paper);stroke-width:2}
+.sp-dot.last{fill:var(--green)}
+.sp-val{font-family:var(--pen);font-weight:600;font-size:13px;fill:var(--ink)}
+.sp-cross{stroke:var(--ink-soft);stroke-width:1}
+.sp-hdot{fill:var(--marker);stroke:var(--ink);stroke-width:1.6}
+.sp-tip{position:absolute;top:0;right:0;font-size:12px;color:var(--ink);background:var(--paper);
+  padding:0 4px;pointer-events:none;opacity:0}
+.sp-tip.on{opacity:1}
 
 /* ---------- 付箋タイマー ---------- */
 #dock{position:fixed;left:0;right:0;bottom:calc(60px + env(safe-area-inset-bottom));z-index:25;
@@ -236,6 +276,8 @@ nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--paper);
 .volrow{display:flex;gap:10px;align-items:center;margin-top:11px}
 .volrow .vl{flex:0 0 auto}
 .tonepick{display:flex;gap:6px;flex-wrap:wrap;flex:1 1 auto}
+.btn2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.btn2 .pb{padding:9px 6px;font-size:13.5px}
 .vol{flex:1 1 auto;min-width:0;height:28px;accent-color:var(--ink);background:transparent}
 .vnum{flex:0 0 30px;text-align:right;font-variant-numeric:tabular-nums}
 .banner{border:1.6px dashed var(--red);border-radius:12px 8px 11px 7px;padding:8px 11px;
@@ -256,9 +298,8 @@ nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--paper);
 
 <div id="app">
   <header>
-    <div class="date-scrawl" id="today-str"></div>
-    <div><h1>筋トレノート</h1></div>
-    <p class="sub" id="headline">読み込み中…</p>
+    <div class="hd-top"><span class="date-scrawl" id="today-str"></span><h1>筋トレノート</h1></div>
+    <p class="headline" id="headline">読み込み中…</p>
   </header>
   <main id="view-today"></main>
   <main id="view-cal" class="hide"></main>
@@ -414,6 +455,13 @@ function setCell(name,k,side,val){
   draft.sets[name]=draft.sets[name]||[];
   draft.sets[name][k]=draft.sets[name][k]||[];
   draft.sets[name][k][side]=val;
+}
+function progText(){
+  if(!PLAN[draft.day]) return "";
+  let d=0,t=0;
+  exOf(draft.day,DB.short).forEach(({e})=>{ const ns=sides(e); t+=e.s*ns;
+    for(let k=0;k<e.s;k++) for(let sd=0;sd<ns;sd++) if(cellVal(e.n,k,sd)!=null) d++; });
+  return `${d} / ${t}`;
 }
 function countFilled(){
   let c=0;
@@ -638,19 +686,19 @@ function paintDock(){
 /* ============ ヘッダー ============ */
 function renderHeader(){
   const d=new Date();
-  document.getElementById("today-str").textContent=
-    `${d.getFullYear()}年 ${d.getMonth()+1}月 ${d.getDate()}日 ${WD[d.getDay()]}曜日`;
+  document.getElementById("today-str").textContent=`${d.getMonth()+1}月${d.getDate()}日 ${WD[d.getDay()]}曜日`;
   const t=today(), doneToday=byDate(t), p=planOf(t), wday=s=>WD[dow(s)]+"曜";
   let s;
-  if(doneToday) s=`今日は ${menuText(doneToday.day)} を実施済み。お疲れさま。`;
-  else if(p!=="-") s=`今日は${wday(t)}、${menuText(p)}の日。`;
+  const mk=(x,tail="")=>`<span class="nw"><mark>${x}</mark>${tail}</span>`;
+  if(doneToday) s=`今日の${mk(menuText(doneToday.day),"は")}記録済み。お疲れさま。`;
+  else if(p!=="-") s=`今日は${wday(t)}、${mk(menuText(p),"の日。")}`;
   else{
     const pd=weekStatus(t).pending, nx=nextPlan(t);
-    if(pd.length) s=`今日は休みの日。${pd.map(x=>wday(x.date)+"の"+menuWord(x.menu)).join("と")}がまだ残っているので、振替でやってもいい。`;
-    else if(nx) s=`今日は休み。次は${wday(nx.date)}の${menuText(nx.menu)}。`;
+    if(pd.length) s=`今日は休みの日。${mk(pd.map(x=>wday(x.date)+"の"+menuWord(x.menu)).join("と"),"が")}まだ残っているので、振替でやってもいい。`;
+    else if(nx) s=`今日は休み。次は${mk(wday(nx.date)+"の"+menuText(nx.menu),"。")}`;
     else s="時間割が全部休みになっています。今日タブの「時間割を変える」から決められます。";
   }
-  document.getElementById("headline").textContent=s;
+  document.getElementById("headline").innerHTML=s;   /* 中身はすべてアプリ内で作った文字列 */
 }
 
 /* ============ 今週の時間割 ============ */
@@ -746,48 +794,46 @@ function renderToday(){
         <div class="pair">${pair}</div></div>`;
     }
     const s=stageOf(e.n); let segs="";
-    for(let k=1;k<=5;k++) segs+=`<button class="seg${k<=s?" on":""}" data-stage-ex="${e.n}" data-stage="${k}"
-      title="段階${k}：${STAGE_TXT[k]}" aria-label="段階${k}"></button>`;
+    for(let k=1;k<=5;k++) segs+=`<i class="seg${k<=s?" on":""}"></i>`;
     let done=0;
     for(let k=0;k<e.s;k++) for(let sd=0;sd<ns;sd++) if(cellVal(e.n,k,sd)!=null) done++;
     const allOn=done===e.s*ns;
 
-    ex+=`<div class="ex${rest&&rest.exi===i?" live":""}">
+    ex+=`<div class="ex${rest&&rest.exi===i?" live":""}${allOn?" done":""}">
       <div class="ex-head">
         <span class="ex-name">${e.n}${e.u?`<span class="ex-tag">左右</span>`:""}</span>
         <span class="ex-target">${e.t}${e.u?" 片側":""}</span>
       </div>
       <div class="sets">${groups}</div>
       <div class="row" style="margin-top:9px">
-        <button class="pb sm${allOn?" on":""}" data-fillex="${i}">${allOn?"消去":"全部"}</button>
-        ${e.u?`<button class="pb sm red" data-rest="${e.sw}" data-exi="${i}" data-swap="1">切替${e.sw}秒</button>`:""}
-        <button class="pb sm" data-rest="${e.r}" data-exi="${i}">休憩${e.r}秒</button>
-        <span class="stage-wrap"><span class="stage-lab">段階</span><span class="stage">${segs}</span></span>
+        <button class="pb sm q" data-fillex="${i}">${allOn?"消去":"全部"}</button>
+        ${e.u?`<button class="pb sm q" data-rest="${e.sw}" data-exi="${i}" data-swap="1">切替${e.sw}秒</button>`:""}
+        <button class="pb sm q" data-rest="${e.r}" data-exi="${i}">休憩${e.r}秒</button>
+        <button class="stage-wrap" data-stage-cycle="${e.n}" title="段階${s}：${STAGE_TXT[s]}"
+          aria-label="段階${s}、${STAGE_TXT[s]}。押すと次の段階へ"><span class="stage-lab">段階</span><span class="stage">${segs}</span></button>
       </div>
     </div>`;
   });
 
-  const filled=countFilled();
+  const filled=countFilled(), dw=k=>k==="C"?"全身":k+"日";
   document.getElementById("view-today").innerHTML=`${top}
-    <h2>${draft.day==="C"?plan.name:`${draft.day}日 ／ ${plan.name}`}</h2>
-    <p class="small" id="cnt">${filled} 箇所 入力済み${DB.short?`　（主力だけ表示中：${shown.length} / ${plan.ex.length} 種目）`:""}</p>
-    <button class="pb wide" id="fill-all">規定回数で 全部 入力する</button>
-    <div class="row">
-      <button class="toggle" id="auto" aria-pressed="${DB.auto?"true":"false"}">
-        <span class="chk"></span>自動タイマー</button>
-      <button class="toggle" id="sound" aria-pressed="${DB.sound?"true":"false"}">
-        <span class="chk"></span>終了時に音を鳴らす</button>
+    <div class="sec-head">
+      <h2>${draft.day==="C"?plan.name:`${draft.day}日 ／ ${plan.name}`}</h2>
+      <span class="prog" id="cnt">${progText()}</span>
+    </div>
+    <div class="tools">
       <button class="toggle" id="short" aria-pressed="${DB.short?"true":"false"}">
         <span class="chk"></span>主力だけ（時短）</button>
+      <button class="pb sm q" id="fill-all">全部入れる</button>
     </div>
-    <p class="note">枠をタップすると規定回数が入ります。もう一度タップで数字を直せて、長押しで消えます。
-    左右別の種目は、左と右がそれぞれ「次に使えるまで」を計測します。</p>
-    <div class="hr"></div>
+    ${DB.short?`<p class="small">主力の ${shown.length} 種目だけ表示しています（全 ${plan.ex.length} 種目）。</p>`:""}
     ${ex}
-    <button class="pb wide green" id="save-session" ${filled?"":"disabled"}>
-      ${filled?(existing?(existing.day===draft.day?"記録を更新する":`${existing.day}日の記録を${draft.day}日で上書きする`):"この内容で記録する"):"タップして回数を入れてね"}
+    <button class="pb wide" id="save-session" ${filled?"":"disabled"}>
+      ${filled?(existing?(existing.day===draft.day?"記録を更新する":`${dw(existing.day)}の記録を${dw(draft.day)}で上書きする`):"この内容で記録する"):"枠をタップして回数を入れる"}
     </button>
-    ${existing?`<button class="pb wide faint" id="del-session">この日の記録を消す</button>`:""}`;
+    ${existing?`<button class="pb wide faint" id="del-session">この日の記録を消す</button>`:""}
+    <p class="note">枠をタップすると目安の回数が入ります。もう一度タップで数字を直せて、長押しで消せます。
+    左右別の種目は、左右それぞれ「次に使えるまで」を計ります。</p>`;
   const inp=document.querySelector(".slot.edit");
   if(inp){ inp.focus(); inp.select(); }
 }
@@ -806,7 +852,7 @@ function renderCal(){
     const s=byDate(key), p=planOf(key);
     if(s&&cnt[s.day]!=null) cnt[s.day]++;
     if(p!=="-"&&key<=t) planTo++;
-    const mark=s?`<span class="m ${s.day.toLowerCase()}">${LABEL[s.day]||s.day}</span>`
+    const mark=s?`<span class="m done">${LABEL[s.day]||s.day}</span>`
       :p!=="-"?`<span class="m plan">${LABEL[p]}</span>`     /* 記録のない日は予定を薄く */
       :`<span class="m none">・</span>`;
     const cls=["day"];
@@ -818,7 +864,7 @@ function renderCal(){
   const s=byDate(cal.sel), sp=planOf(cal.sel); let panel;
   if(s){
     panel=`<div><span class="dp-date">${jpDate(cal.sel)}</span>
-      <span class="badge ${s.day.toLowerCase()}">${s.day==="C"?"全身":s.day+"日"}</span></div>
+      <span class="badge">${s.day==="C"?"全身":s.day+"日"}</span></div>
       <div class="dp-list">${s.entries.map(e=>`${e.n} … ${fmtEntry(e)}`).join("<br>")}</div>
       <button class="pb sm" data-edit="${cal.sel}" style="margin-top:8px">この日を修正</button>`;
   }else{
@@ -840,37 +886,46 @@ function renderCal(){
     <div class="cal-grid">${cells}</div>
     <div class="daypanel">${panel}</div>
     <h2>今月の集計</h2>
-    <p class="small">A ${cnt.A}回 ／ B ${cnt.B}回 ／ 全身 ${cnt.C}回　合計 ${cnt.A+cnt.B+cnt.C}回（今日までの予定 ${planTo}回）</p>
-    <p class="note">赤丸が今日。A＝上半身、B＝下半身＋前腕、全＝全身（主力だけ）。
-    薄い字は時間割の予定。左右別の種目は「左/右」で並びます。</p>`;
+    <p class="sum"><b>${cnt.A+cnt.B+cnt.C}</b>回<span>今日までの予定 ${planTo}回</span></p>
+    <p class="small">A ${cnt.A}回 ／ B ${cnt.B}回 ／ 全身 ${cnt.C}回</p>
+    <p class="note">赤丸が今日。緑の字はやった日、薄い字は時間割の予定です。
+    A＝上半身、B＝下半身＋前腕、全＝全身（主力だけ）。左右別の種目は「左/右」で並びます。</p>`;
 }
 
 /* ============ 身体 ============ */
+/* 1指標1グラフ。目盛りの違う2つを同じグラフに描くと、どちらの変化も見えなくなる */
+function sparkChart(key,label,unit){
+  const b=DB.body.slice(-12).filter(x=>x[key]!=null);
+  if(b.length<2) return "";
+  const W=340,H=96,L=34,R=40,T=12,B=20;
+  const vs=b.map(x=>x[key]);
+  let lo=Math.min(...vs),hi=Math.max(...vs);
+  if(hi-lo<1){const c=(hi+lo)/2;lo=c-.5;hi=c+.5;}
+  const X=i=>L+i*(W-L-R)/(b.length-1), Y=v=>T+(hi-v)/(hi-lo)*(H-T-B);
+  const pts=b.map((x,i)=>[X(i),Y(x[key])]), last=pts[pts.length-1];
+  const f=v=>v.toFixed(1);
+  return `<figure class="spark">
+    <figcaption><span class="sp-name">${label}</span><span class="sp-unit">${unit}</span></figcaption>
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${label}の推移 ${md(b[0].d)} ${f(vs[0])}${unit} から ${md(b[b.length-1].d)} ${f(vs[vs.length-1])}${unit}"
+      data-spark="${key}">
+      <line x1="${L}" x2="${W-R}" y1="${Y(hi)}" y2="${Y(hi)}" class="sp-grid"/>
+      <line x1="${L}" x2="${W-R}" y1="${Y(lo)}" y2="${Y(lo)}" class="sp-grid"/>
+      <text x="${L-6}" y="${Y(hi)+4}" class="sp-ax" text-anchor="end">${f(hi)}</text>
+      <text x="${L-6}" y="${Y(lo)+4}" class="sp-ax" text-anchor="end">${f(lo)}</text>
+      <text x="${L}" y="${H-4}" class="sp-ax">${md(b[0].d)}</text>
+      <text x="${W-R}" y="${H-4}" class="sp-ax" text-anchor="end">${md(b[b.length-1].d)}</text>
+      <polyline points="${pts.map(p=>p[0].toFixed(1)+","+p[1].toFixed(1)).join(" ")}" class="sp-line"/>
+      ${pts.map((p,i)=>`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${i===pts.length-1?4.5:3}" class="sp-dot${i===pts.length-1?" last":""}"/>`).join("")}
+      <text x="${last[0]+8}" y="${last[1]+5}" class="sp-val">${f(vs[vs.length-1])}</text>
+      <g class="sp-hover" visibility="hidden"><line class="sp-cross" y1="${T-4}" y2="${H-B}"/><circle r="5" class="sp-hdot"/></g>
+    </svg>
+    <div class="sp-tip" aria-hidden="true"></div>
+  </figure>`;
+}
 function renderBody(){
-  const b=DB.body.slice(-12);
-  let chart=`<p class="empty">数値を入れるとグラフが出ます。</p>`;
-  if(b.length>=2){
-    const W=380,H=126,P=10;
-    const all=b.flatMap(x=>[x.w,x.m]).filter(v=>v!=null);
-    let lo=Math.min(...all),hi=Math.max(...all);
-    if(hi-lo<2){const c=(hi+lo)/2;lo=c-1;hi=c+1;}
-    const pad=(hi-lo)*0.18; lo-=pad; hi+=pad;
-    const X=i=>P+i*(W-2*P)/(b.length-1);
-    const Y=v=>H-P-(v-lo)/(hi-lo)*(H-2*P);
-    const line=(k,c)=>{
-      const pts=b.map((x,i)=>x[k]!=null?[X(i),Y(x[k])]:null).filter(Boolean);
-      if(pts.length<2) return "";
-      return `<polyline points="${pts.map(p=>p[0].toFixed(1)+","+p[1].toFixed(1)).join(" ")}"
-        fill="none" stroke="${c}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>`
-        + pts.map(p=>`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.8" fill="${c}"/>`).join("");
-    };
-    chart=`<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="推移">
-      <line x1="${P}" y1="${H-P}" x2="${W-P}" y2="${H-P}" stroke="#C3CCD8" stroke-width="1.5"/>
-      ${line("m","#3D6BA8")}${line("w","#2F7A52")}</svg>
-    <div class="legend"><span><i class="swatch" style="background:#2F7A52"></i>体重</span>
-      <span><i class="swatch" style="background:#3D6BA8"></i>筋肉量</span>
-      <span>${md(b[0].d)} → ${md(b[b.length-1].d)}</span></div>`;
-  }
+  const chart=DB.body.length>=2
+    ? sparkChart("w","体重","kg")+sparkChart("m","筋肉量","kg")
+    : `<p class="empty">2回以上記録すると、ここに推移が出ます。</p>`;
   const last=DB.body.length?DB.body[DB.body.length-1]:null;
   /* 最初の1回だけと比べるとぶれが大きいので、最初の3回の平均と比べる */
   let cmp="";
@@ -892,11 +947,11 @@ function renderBody(){
     <p class="small">${last?md(last.d)+" 更新":"未記録"}</p>
     <div class="fields">
       <div class="field"><label for="f-w">体重 kg</label>
-        <input id="f-w" inputmode="decimal" placeholder="${last&&last.w!=null?last.w:"60.0"}"></div>
+        <input id="f-w" inputmode="decimal"><span class="prev">${last&&last.w!=null?"前回 "+last.w:""}</span></div>
       <div class="field"><label for="f-m">筋肉量 kg</label>
-        <input id="f-m" inputmode="decimal" placeholder="${last&&last.m!=null?last.m:"47.0"}"></div>
+        <input id="f-m" inputmode="decimal"><span class="prev">${last&&last.m!=null?"前回 "+last.m:""}</span></div>
       <div class="field"><label for="f-s">スコア</label>
-        <input id="f-s" inputmode="numeric" placeholder="${last&&last.s!=null?last.s:"-1"}"></div>
+        <input id="f-s" inputmode="numeric"><span class="prev">${last&&last.s!=null?"前回 "+last.s:""}</span></div>
     </div>
     <button class="pb wide green" id="save-body">今日の数値を保存</button>
     ${chart}
@@ -911,22 +966,14 @@ function renderBody(){
 function renderSet(){
   const n=DB.sessions.length, bn=DB.body.length;
   document.getElementById("view-set").innerHTML=`
-    <h2>バックアップ</h2>
-    <p class="small">記録はこの端末のブラウザに保存されています。
-    機種変更やブラウザのデータ削除で消える場合があるため、定期的に書き出しておくと安全です。</p>
-    <p class="small">現在の記録：トレーニング ${n} 件 ／ 身体 ${bn} 件</p>
-    <button class="pb wide" id="export">ファイルに書き出し</button>
-    <button class="pb wide" id="import-btn">ファイルから読み込み</button>
-    <input type="file" id="import-file" accept="application/json,.json" class="hide">
-    <div class="hr"></div>
-    <h2>設定項目</h2>
+    <h2>タイマーと音</h2>
     <div class="row">
       <button class="toggle" id="auto" aria-pressed="${DB.auto?"true":"false"}">
-        <span class="chk"></span>自動タイマー</button>
+        <span class="chk"></span>枠を入れたら休憩タイマーを動かす</button>
     </div>
     <div class="row">
       <button class="toggle" id="sound" aria-pressed="${DB.sound?"true":"false"}">
-        <span class="chk"></span>終了時に音を鳴らす</button>
+        <span class="chk"></span>休憩が終わったら音を鳴らす</button>
     </div>
     <div class="row">
       <button class="toggle" id="bg" aria-pressed="${DB.bg?"true":"false"}">
@@ -944,20 +991,25 @@ function renderSet(){
       <span class="small vnum" id="volnum">${Math.round(vol()*100)}</span>
       <button class="pb sm" id="voltest">試聴</button>
     </div>
-    <p class="note">音色を押すと試し鳴らしします。スライダーも動かすとその音量で鳴ります。
-    端末そのものの音量も上げてください。</p>
-    <p class="note">音楽を止めないことを優先しています。音は音楽と混ざって鳴るので、
-    聴きながらでも音楽は止まりません。そのかわり iPhone では、画面を閉じている間は
-    鳴らないことがあります。休憩中はなるべく画面を開いたままにしてください。</p>
+    <p class="note">音色を押すか、音量を動かすと試し鳴らしします。音は音楽と混ざって鳴るので、
+    聴いている音楽は止まりません。そのかわり iPhone では、画面を閉じている間は鳴らないことがあります。</p>
     <div class="hr"></div>
-    <h2>ホーム画面への追加</h2>
+    <h2>バックアップ</h2>
+    <p class="small">記録はこの端末のブラウザにだけ保存されています（トレーニング ${n} 件 ／ 身体 ${bn} 件）。
+    機種変更やブラウザのデータ削除で消えるので、ときどき書き出しておいてください。</p>
+    <div class="btn2">
+      <button class="pb" id="export">ファイルに書き出す</button>
+      <button class="pb" id="import-btn">ファイルから読み込む</button>
+    </div>
+    <input type="file" id="import-file" accept="application/json,.json" class="hide">
+    <div class="hr"></div>
+    <h2>ホーム画面に追加する</h2>
     <p class="small">iPhone は Safari の共有ボタン →「ホーム画面に追加」。
-    Android は Chrome のメニュー →「アプリをインストール」。
-    一度開けばオフラインでも動作します。</p>
+    Android は Chrome のメニュー →「アプリをインストール」。一度開けば電波がなくても使えます。</p>
     <div class="hr"></div>
-    <h2>全消去</h2>
-    <p class="small">復元できません。先に書き出しを行ってください。</p>
-    <button class="pb wide red" id="wipe">記録を全て消去する</button>`;
+    <h2>記録を全部消す</h2>
+    <p class="small">元に戻せません。先に書き出しておいてください。</p>
+    <button class="pb wide red" id="wipe">記録を全部消す</button>`;
 }
 
 /* ============ タブ ============ */
@@ -970,6 +1022,29 @@ function show(t){
   if(t==="set") renderSet();
   window.scrollTo({top:0});
 }
+
+/* ============ 体のグラフ：触れた点の日付と値を出す ============ */
+function sparkAt(svg,clientX){
+  const key=svg.dataset.spark, b=DB.body.slice(-12).filter(x=>x[key]!=null);
+  const dots=[...svg.querySelectorAll(".sp-dot")]; if(!dots.length) return;
+  const r=svg.getBoundingClientRect(), vb=svg.viewBox.baseVal, x=(clientX-r.left)/r.width*vb.width;
+  let bi=0; dots.forEach((d,i)=>{ if(Math.abs(+d.getAttribute("cx")-x)<Math.abs(+dots[bi].getAttribute("cx")-x)) bi=i; });
+  const cx=dots[bi].getAttribute("cx"), cy=dots[bi].getAttribute("cy"), g=svg.querySelector(".sp-hover");
+  g.setAttribute("visibility","visible");
+  g.querySelector(".sp-cross").setAttribute("x1",cx); g.querySelector(".sp-cross").setAttribute("x2",cx);
+  g.querySelector(".sp-hdot").setAttribute("cx",cx); g.querySelector(".sp-hdot").setAttribute("cy",cy);
+  const tip=svg.parentNode.querySelector(".sp-tip");
+  tip.textContent=`${md(b[bi].d)}　${b[bi][key].toFixed(1)} kg`; tip.classList.add("on");
+}
+function sparkOff(svg){ svg.querySelector(".sp-hover").setAttribute("visibility","hidden");
+  svg.parentNode.querySelector(".sp-tip").classList.remove("on"); }
+["pointermove","pointerdown"].forEach(ev=>document.addEventListener(ev,e=>{
+  const svg=e.target.closest&&e.target.closest("svg[data-spark]"); if(svg) sparkAt(svg,e.clientX);
+}));
+document.addEventListener("pointerout",e=>{
+  const svg=e.target.closest&&e.target.closest("svg[data-spark]");
+  if(svg&&!svg.contains(e.relatedTarget)) sparkOff(svg);
+});
 
 /* ============ 長押しで消す ============ */
 let holdT=null;
@@ -1069,10 +1144,9 @@ document.addEventListener("click",e=>{
     });
     editing=null; return renderToday();
   }
-  if(t.dataset.stageEx){
-    const n=t.dataset.stageEx,v=+t.dataset.stage;
-    DB.stages[n]=(DB.stages[n]===v)?v-1:v;
-    if(DB.stages[n]<1) delete DB.stages[n];
+  if(t.dataset.stageCycle){
+    const n=t.dataset.stageCycle, v=stageOf(n)%5+1;      /* 1→2→…→5→1 */
+    if(v===1) delete DB.stages[n]; else DB.stages[n]=v;
     save(); return renderToday();
   }
 
@@ -1162,7 +1236,7 @@ document.addEventListener("input",e=>{
   el.value=el.value.replace(/[^0-9]/g,"");
   const e2=PLAN[draft.day].ex[+el.dataset.ex];
   setCell(e2.n,+el.dataset.set,+el.dataset.side,el.value);
-  const c=document.getElementById("cnt"); if(c) c.textContent=countFilled()+" 箇所 入力済み";
+  const c=document.getElementById("cnt"); if(c) c.textContent=progText();
   const b=document.getElementById("save-session"); if(b) b.disabled=!countFilled();
 });
 document.addEventListener("keydown",e=>{
